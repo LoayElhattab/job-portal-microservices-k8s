@@ -1,871 +1,699 @@
-# System Design & API Specification
-
-## Job Portal Microservices Platform
-
----
-
-## Table of Contents
-
-1. [System Architecture & Component Mapping](https://www.notion.so/Cloud-Project-Documenation-353a465a2736800781b0fda2bb0feab0?pvs=21)
-2. [Networking Schema](https://www.notion.so/Cloud-Project-Documenation-353a465a2736800781b0fda2bb0feab0?pvs=21)
-3. [API Contract](https://www.notion.so/Cloud-Project-Documenation-353a465a2736800781b0fda2bb0feab0?pvs=21)
-4. [Infrastructure & DevOps Blueprint](https://www.notion.so/Cloud-Project-Documenation-353a465a2736800781b0fda2bb0feab0?pvs=21)
-5. [Rubric Compliance Matrix](https://www.notion.so/Cloud-Project-Documenation-353a465a2736800781b0fda2bb0feab0?pvs=21)
+# Job Portal Microservices Platform
+## System Design & Vibe Coding Specification
 
 ---
 
-## 1. System Architecture & Component Mapping
+### Document Purpose
+This file is the **single source of truth** for the entire project. It specifies what exists, where it lives, what it must do, and how it connects to everything else. When vibe-coding a feature, paste the relevant section of this document into the AI prompt along with the instruction: *"Generate the files listed in this specification. Do not modify files outside the specified paths."*
 
-### 1.1 Microservices Breakdown
+---
 
-| # | Service | Responsibility | Tech Stack |
-| --- | --- | --- | --- |
-| 1 | **User Service** | Registration, Login (JWT), Profile CRUD | Node.js + Express |
-| 2 | **Job Service** | Job Posting CRUD, Search/Filter | Node.js + Express |
-| 3 | **Application Service** | Submit Application, Status Tracking, publishes events to RabbitMQ | Node.js + Express |
-| 4 | **Notification Service** | Consumes RabbitMQ events, stores & serves notifications | Node.js + Express |
-| — | **API Gateway** | Reverse proxy, route mapping, CORS | Nginx |
+## 1. Executive Summary
 
-### 1.2 Data Ownership (Database-per-Service)
+A microservices-based "Mini LinkedIn Jobs" platform with:
+- **6 custom Docker images** (rubric requires ≥3)
+- **3 simultaneous environments** (dev/test/prod) via Docker Compose
+- **Kubernetes orchestration** with Minikube
+- **RabbitMQ async messaging** between Application and Notification services
+- **Prometheus + Grafana monitoring** (dev only)
+- **Flutter Web frontend** served via nginx
 
-Each service owns its data via a **logically isolated database** inside a single PostgreSQL container.
+**Tech Stack:** Node.js + Express (backend), Flutter (frontend), PostgreSQL (data), RabbitMQ (messaging), Nginx (gateway), Prometheus/Grafana (monitoring), Kubernetes (orchestration).
 
-| Service | Database Name | Key Tables |
-| --- | --- | --- |
+---
+
+## 2. Architecture & Component Mapping
+
+### 2.1 Services
+
+| # | Service | Responsibility | Image Name | Internal Port |
+|---|---------|--------------|------------|---------------|
+| 1 | **Flutter Web App** | Frontend UI | `jobportal/app` | 80 |
+| 2 | **User Service** | Auth, JWT, profiles | `jobportal/user-service` | 3000 |
+| 3 | **Job Service** | Job CRUD, search | `jobportal/job-service` | 3001 |
+| 4 | **Application Service** | Applications, publishes RabbitMQ events | `jobportal/application-service` | 3002 |
+| 5 | **Notification Service** | Consumes RabbitMQ events, notifications | `jobportal/notification-service` | 3003 |
+| 6 | **API Gateway** | Reverse proxy, routing | `jobportal/gateway` | 80 |
+| — | PostgreSQL | 4 logical databases | `postgres:16-alpine` | 5432 |
+| — | RabbitMQ | Message broker | `rabbitmq:3.13-management-alpine` | 5672 / 15672 |
+| — | Prometheus | Metrics collection | `prom/prometheus:v2.50.0` | 9090 |
+| — | Grafana | Metrics visualization | `grafana/grafana:10.4.0` | 3000 |
+
+### 2.2 Data Ownership
+
+| Service | Database | Table(s) |
+|---------|----------|----------|
 | User Service | `user_db` | `users` |
 | Job Service | `job_db` | `jobs` |
 | Application Service | `application_db` | `applications` |
 | Notification Service | `notification_db` | `notifications` |
 
-**PostgreSQL Init Script** (`infra/init-databases.sql`):
+### 2.3 Communication Patterns
 
-```sql
--- Executed by the postgres container on first boot
-CREATE DATABASE user_db;
-CREATE DATABASE job_db;
-CREATE DATABASE application_db;
-CREATE DATABASE notification_db;
+**Synchronous (HTTP/REST):**
+```
+Flutter Web App ──→ Gateway:80 ──→ Target Service:PORT/api/v1/...
 ```
 
-### 1.3 Communication Flow
-
-### Synchronous Path (HTTP/REST)
-
+**Asynchronous (RabbitMQ):**
 ```
-Flutter App ──HTTPS──> Nginx Gateway ──HTTP──> target-service:PORT/api/v1/...
+Application Service ──publish──→ [application_events] exchange ──consume──→ Notification Service
 ```
 
-### Asynchronous Path (RabbitMQ)
+**Events:**
+
+| Event | Routing Key | Payload | Publisher |
+|-------|-------------|---------|-----------|
+| `application.submitted` | `application.submitted` | `{applicationId, jobId, seekerId, employerId}` | Application Service |
+| `application.status_changed` | `application.status_changed` | `{applicationId, seekerId, newStatus}` | Application Service |
+
+---
+
+## 3. Complete File Structure
+
+Every file that must exist is listed below. If it is not listed, it should not exist.
 
 ```
-Application Service ──publish──> RabbitMQ [application_events] ──consume──> Notification Service
-```
-
-**Events Published:**
-
-| Event Name | Payload | Trigger |
-| --- | --- | --- |
-| `application.submitted` | `{ applicationId, jobId, seekerId, employerId }` | Seeker submits application |
-| `application.status_changed` | `{ applicationId, seekerId, newStatus }` | Employer updates status |
-
-### 1.4 System Architecture Diagram
-
-```mermaid
-graph TB
-    subgraph Client
-        A["Flutter Mobile App"]
-    end
-
-    subgraph "Linux Host Machine"
-        subgraph "Docker / Kubernetes Cluster"
-            GW["Nginx API Gateway<br/>:80"]
-
-            subgraph "Core Services"
-                US["User Service<br/>:3000"]
-                JS["Job Service<br/>:3001"]
-                AS["Application Service<br/>:3002"]
-                NS["Notification Service<br/>:3003"]
-            end
-
-            subgraph "Data Layer"
-                PG["PostgreSQL<br/>4 Logical DBs"]
-                RMQ["RabbitMQ<br/>:5672 / :15672"]
-            end
-
-            subgraph "Monitoring Stack"
-                PROM["Prometheus<br/>:9090"]
-                GRAF["Grafana<br/>:3100"]
-            end
-        end
-    end
-
-    A -->|"HTTPS"| GW
-    GW -->|"/api/v1/users/**"| US
-    GW -->|"/api/v1/jobs/**"| JS
-    GW -->|"/api/v1/applications/**"| AS
-    GW -->|"/api/v1/notifications/**"| NS
-
-    US --> PG
-    JS --> PG
-    AS --> PG
-    NS --> PG
-
-    AS -->|"Publish Event"| RMQ
-    RMQ -->|"Consume Event"| NS
-
-    PROM -->|"Scrape /metrics"| US
-    PROM -->|"Scrape /metrics"| JS
-    PROM -->|"Scrape /metrics"| AS
-    PROM -->|"Scrape /metrics"| NS
-    GRAF -->|"Query"| PROM
+job-portal/
+│
+├── app/                                    # Flutter Web Frontend — Custom Image #1
+│   ├── web/
+│   │   ├── index.html
+│   │   └── manifest.json
+│   ├── lib/
+│   │   ├── main.dart                       # Entry point. Calls env_loader BEFORE runApp.
+│   │   ├── app.dart                        # MaterialApp / root widget
+│   │   ├── config/
+│   │   │   ├── app_config.dart             # Singleton holding runtime API URL
+│   │   │   ├── env_loader.dart             # Fetches /env.json, injects into AppConfig
+│   │   │   ├── app_routes.dart             # GoRouter configuration
+│   │   │   └── environments/
+│   │   │       ├── development.dart        # Fallback defaults
+│   │   │       ├── testing.dart
+│   │   │       └── production.dart
+│   │   ├── core/
+│   │   │   ├── network/
+│   │   │   │   ├── api_client.dart         # Dio singleton
+│   │   │   │   └── api_interceptor.dart    # JWT injection + 401 redirect
+│   │   │   ├── errors/
+│   │   │   │   └── failures.dart
+│   │   │   └── widgets/
+│   │   │       ├── loading_widget.dart
+│   │   │       └── error_widget.dart
+│   │   └── features/
+│   │       ├── auth/
+│   │       │   ├── data/
+│   │       │   │   ├── models/
+│   │       │   │   │   ├── user_model.dart
+│   │       │   │   │   ├── login_request_model.dart
+│   │       │   │   │   └── register_request_model.dart
+│   │       │   │   ├── datasources/
+│   │       │   │   │   ├── auth_remote_datasource.dart
+│   │       │   │   │   └── auth_local_datasource.dart
+│   │       │   │   └── repositories/
+│   │       │   │       └── auth_repository_impl.dart
+│   │       │   ├── domain/
+│   │       │   │   ├── entities/
+│   │       │   │   │   └── user.dart
+│   │       │   │   ├── repositories/
+│   │       │   │   │   └── auth_repository.dart
+│   │       │   │   └── usecases/
+│   │       │   │       ├── login_usecase.dart
+│   │       │   │       ├── register_usecase.dart
+│   │       │   │       └── get_current_user_usecase.dart
+│   │       │   └── presentation/
+│   │       │       ├── bloc/
+│   │       │       │   ├── auth_bloc.dart
+│   │       │       │   ├── auth_event.dart
+│   │       │       │   └── auth_state.dart
+│   │       │       ├── pages/
+│   │       │       │   ├── login_page.dart
+│   │       │       │   └── register_page.dart
+│   │       │       └── widgets/
+│   │       │           ├── login_form.dart
+│   │       │           └── register_form.dart
+│   │       │
+│   │       ├── jobs/
+│   │       │   ├── data/
+│   │       │   │   ├── models/
+│   │       │   │   │   ├── job_model.dart
+│   │       │   │   │   └── job_filter_model.dart
+│   │       │   │   ├── datasources/
+│   │       │   │   │   └── job_remote_datasource.dart
+│   │       │   │   └── repositories/
+│   │       │   │       └── job_repository_impl.dart
+│   │       │   ├── domain/
+│   │       │   │   ├── entities/
+│   │       │   │   │   └── job.dart
+│   │       │   │   ├── repositories/
+│   │       │   │   │   └── job_repository.dart
+│   │       │   │   └── usecases/
+│   │       │   │       ├── get_jobs_usecase.dart
+│   │       │   │       ├── get_job_details_usecase.dart
+│   │       │   │       ├── search_jobs_usecase.dart
+│   │       │   │       └── post_job_usecase.dart
+│   │       │   └── presentation/
+│   │       │       ├── bloc/
+│   │       │       │   ├── job_bloc.dart
+│   │       │       │   ├── job_event.dart
+│   │       │       │   └── job_state.dart
+│   │       │       ├── pages/
+│   │       │       │   ├── jobs_list_page.dart
+│   │       │       │   ├── job_detail_page.dart
+│   │       │       │   ├── post_job_page.dart
+│   │       │       │   └── my_jobs_page.dart
+│   │       │       └── widgets/
+│   │       │           ├── job_card.dart
+│   │       │           └── job_search_bar.dart
+│   │       │
+│   │       ├── applications/
+│   │       │   ├── data/
+│   │       │   │   ├── models/
+│   │       │   │   │   ├── application_model.dart
+│   │       │   │   │   └── status_update_model.dart
+│   │       │   │   ├── datasources/
+│   │       │   │   │   └── application_remote_datasource.dart
+│   │       │   │   └── repositories/
+│   │       │   │       └── application_repository_impl.dart
+│   │       │   ├── domain/
+│   │       │   │   ├── entities/
+│   │       │   │   │   └── application.dart
+│   │       │   │   ├── repositories/
+│   │       │   │   │   └── application_repository.dart
+│   │       │   │   └── usecases/
+│   │       │   │       ├── apply_for_job_usecase.dart
+│   │       │   │       ├── get_applications_usecase.dart
+│   │       │   │       └── update_application_status_usecase.dart
+│   │       │   └── presentation/
+│   │       │       ├── bloc/
+│   │       │       │   ├── application_bloc.dart
+│   │       │       │   ├── application_event.dart
+│   │       │       │   └── application_state.dart
+│   │       │       ├── pages/
+│   │       │       │   ├── apply_page.dart
+│   │       │       │   ├── my_applications_page.dart
+│   │       │       │   └── applicants_page.dart
+│   │       │       └── widgets/
+│   │       │           ├── application_card.dart
+│   │       │           └── status_badge.dart
+│   │       │
+│   │       ├── notifications/
+│   │       │   ├── data/
+│   │       │   │   ├── models/
+│   │       │   │   │   └── notification_model.dart
+│   │       │   │   ├── datasources/
+│   │       │   │   │   └── notification_remote_datasource.dart
+│   │       │   │   └── repositories/
+│   │       │   │       └── notification_repository_impl.dart
+│   │       │   ├── domain/
+│   │       │   │   ├── entities/
+│   │       │   │   │   └── notification.dart
+│   │       │   │   ├── repositories/
+│   │       │   │   │   └── notification_repository.dart
+│   │       │   │   └── usecases/
+│   │       │   │       ├── get_notifications_usecase.dart
+│   │       │   │       └── mark_as_read_usecase.dart
+│   │       │   └── presentation/
+│   │       │       ├── bloc/
+│   │       │       │   ├── notification_bloc.dart
+│   │       │       │   ├── notification_event.dart
+│   │       │       │   └── notification_state.dart
+│   │       │       ├── pages/
+│   │       │       │   └── notifications_page.dart
+│   │       │       └── widgets/
+│   │       │           └── notification_tile.dart
+│   │       │
+│   │       └── profile/
+│   │           ├── data/
+│   │           │   ├── models/
+│   │           │   │   └── profile_model.dart
+│   │           │   ├── datasources/
+│   │           │   │   └── profile_remote_datasource.dart
+│   │           │   └── repositories/
+│   │           │       └── profile_repository_impl.dart
+│   │           ├── domain/
+│   │           │   ├── entities/
+│   │           │   │   └── profile.dart
+│   │           │   ├── repositories/
+│   │           │   │   └── profile_repository.dart
+│   │           │   └── usecases/
+│   │           │       └── get_profile_usecase.dart
+│   │           └── presentation/
+│   │               ├── bloc/
+│   │               │   ├── profile_bloc.dart
+│   │               │   ├── profile_event.dart
+│   │               │   └── profile_state.dart
+│   │               ├── pages/
+│   │               │   └── profile_page.dart
+│   │               └── widgets/
+│   │                   └── profile_header.dart
+│   │
+│   ├── docker-entrypoint.sh                # Generates env.json from env vars at runtime
+│   ├── env.template.json                   # Template for env.json generation
+│   ├── Dockerfile                            # Multi-stage: Flutter build → nginx serve
+│   ├── nginx.conf                            # Serves static files + /env.json
+│   ├── .dockerignore
+│   └── pubspec.yaml
+│
+├── services/
+│   ├── user-service/                         # Custom Image #2
+│   │   ├── src/
+│   │   │   ├── index.js                      # Express entry point
+│   │   │   ├── db.js                         # Postgres pool + migration + retry loop
+│   │   │   ├── metrics.js                    # prom-client registry + HTTP histogram
+│   │   │   ├── routes/
+│   │   │   │   └── users.js                  # POST /register, POST /login, GET /profile
+│   │   │   └── middleware/
+│   │   │       ├── auth.js                   # JWT verify, attach {userId, email, role}
+│   │   │       └── errorHandler.js           # Global error handler, spec envelope
+│   │   ├── Dockerfile                        # Multi-stage production build
+│   │   ├── Dockerfile.dev                    # nodemon + bind mount
+│   │   ├── .dockerignore
+│   │   ├── package.json
+│   │   └── .env.example
+│   │
+│   ├── job-service/                          # Custom Image #3
+│   │   ├── src/
+│   │   │   ├── index.js
+│   │   │   ├── db.js
+│   │   │   ├── metrics.js
+│   │   │   ├── routes/
+│   │   │   │   └── jobs.js                   # CRUD + search + pagination
+│   │   │   └── middleware/
+│   │   │       ├── auth.js
+│   │   │       └── errorHandler.js
+│   │   ├── Dockerfile
+│   │   ├── Dockerfile.dev
+│   │   ├── .dockerignore
+│   │   ├── package.json
+│   │   └── .env.example
+│   │
+│   ├── application-service/                  # Custom Image #4
+│   │   ├── src/
+│   │   │   ├── index.js
+│   │   │   ├── db.js
+│   │   │   ├── metrics.js
+│   │   │   ├── routes/
+│   │   │   │   └── applications.js           # Apply, list, update status
+│   │   │   ├── rabbitmq/
+│   │   │   │   └── publisher.js              # Connects to exchange, publishes events
+│   │   │   └── middleware/
+│   │   │       ├── auth.js
+│   │   │       └── errorHandler.js
+│   │   ├── Dockerfile
+│   │   ├── Dockerfile.dev
+│   │   ├── .dockerignore
+│   │   ├── package.json
+│   │   └── .env.example
+│   │
+│   └── notification-service/                 # Custom Image #5
+│       ├── src/
+│       │   ├── index.js
+│       │   ├── db.js
+│       │   ├── metrics.js
+│       │   ├── routes/
+│       │   │   └── notifications.js          # GET /notifications
+│       │   ├── rabbitmq/
+│       │   │   └── consumer.js               # Binds queue, consumes events, writes to DB
+│       │   └── middleware/
+│       │       ├── auth.js
+│       │       └── errorHandler.js
+│       ├── Dockerfile
+│       ├── Dockerfile.dev
+│       ├── .dockerignore
+│       ├── package.json
+│       └── .env.example
+│
+├── gateway/                                  # Custom Image #6
+│   ├── Dockerfile                            # Bakes nginx.{env}.conf into image
+│   ├── nginx.dev.conf                        # Dev routing: upstreams = *-dev:PORT
+│   ├── nginx.test.conf                       # Test routing: upstreams = *-test:PORT
+│   ├── nginx.prod.conf                       # Prod routing: upstreams = *-prod:PORT
+│   └── .dockerignore
+│
+├── infrastructure/
+│   ├── databases/
+│   │   └── init-databases.sql                # CREATE DATABASE for all 4 services
+│   ├── monitoring/
+│   │   ├── prometheus/
+│   │   │   └── prometheus.yml                # Static scrape config for 4 services
+│   │   └── grafana/
+│   │       └── provisioning/
+│   │           ├── datasources/
+│   │           │   └── datasource.yml          # Auto-provisions Prometheus source
+│   │           └── dashboards/
+│   │               ├── dashboards.yml          # Auto-imports dashboard JSON
+│   │               └── jobportal-dashboard.json # Actual dashboard definition
+│   └── scripts/
+│       ├── start-all.sh                      # Spins up dev + test + prod simultaneously
+│       ├── stop-all.sh                       # Tears down all 3 environments
+│       └── deploy-k8s.sh                     # Builds images + applies K8s manifests
+│
+├── k8s/
+│   ├── apply-all.sh                          # Ordered apply: namespace → config → secrets → infra → services → monitoring
+│   ├── 00-namespace.yml                      # Creates jobportal-prod namespace
+│   ├── 01-configmap.yml                      # Non-sensitive env vars
+│   ├── 02-secrets.yml                        # Base64-encoded secrets
+│   ├── postgres/
+│   │   ├── deployment.yml                    # Recreate strategy, init SQL ConfigMap
+│   │   └── service.yml                       # ClusterIP, port 5432
+│   ├── rabbitmq/
+│   │   ├── deployment.yml
+│   │   └── service.yml                       # ClusterIP, ports 5672 + 15672
+│   ├── user-service/
+│   │   ├── deployment.yml                    # 2 replicas, RollingUpdate, probes
+│   │   └── service.yml                       # ClusterIP, port 3000
+│   ├── job-service/
+│   │   ├── deployment.yml
+│   │   └── service.yml                       # ClusterIP, port 3001
+│   ├── application-service/
+│   │   ├── deployment.yml
+│   │   └── service.yml                       # ClusterIP, port 3002
+│   ├── notification-service/
+│   │   ├── deployment.yml
+│   │   └── service.yml                       # ClusterIP, port 3003
+│   ├── app/
+│   │   ├── deployment.yml                    # Flutter web nginx container
+│   │   └── service.yml                       # ClusterIP, port 80
+│   ├── gateway/
+│   │   ├── deployment.yml
+│   │   └── service.yml                       # NodePort, external entry point
+│   └── monitoring/
+│       ├── prometheus-deployment.yml
+│       ├── prometheus-service.yml            # ClusterIP, port 9090
+│       ├── grafana-deployment.yml
+│       └── grafana-service.yml               # ClusterIP, port 3000
+│
+├── docs/
+│   ├── architecture.md
+│   ├── setup.md
+│   ├── deployment.md
+│   ├── api.md
+│   └── diagrams/
+│       └── system-architecture.png
+│
+├── docker-compose.dev.yml                    # Full stack, 3100s, hot reload, monitoring
+├── docker-compose.test.yml                   # Full stack, 3200s, prod Dockerfiles, no monitoring
+├── docker-compose.prod.yml                   # Full stack, 3300s, prod Dockerfiles, no monitoring
+├── .env.dev                                  # Actual dev secrets (gitignored)
+├── .env.test                                 # Actual test secrets (gitignored)
+├── .env.prod                                 # Actual prod secrets (gitignored)
+├── .env.example                              # Template showing all required variables
+├── .gitignore
+└── README.md                                 # This file
 ```
 
 ---
 
-## 2. Networking Schema
+## 4. Environment Variable Contract
 
-### 2.1 Simultaneous Environment Strategy
+Copy `.env.example` to `.env.dev`, `.env.test`, `.env.prod`. Fill in real values. Never commit the `.env.*` files.
 
-**Approach:** Three separate `docker-compose.<env>.yml` files, each defining its own **isolated Docker network** and a **unique host-port range**.
-
-| File | Network Name | Port Range | Purpose |
-| --- | --- | --- | --- |
-| `docker-compose.dev.yml` | `jobportal-dev` | `3100–3199` | Hot-reload, debug logs |
-| `docker-compose.test.yml` | `jobportal-test` | `3200–3299` | Integration/E2E tests |
-| `docker-compose.prod.yml` | `jobportal-prod` | `3300–3399` | Optimized production build |
-
-**Launch commands (can run simultaneously):**
+### Required Variables
 
 ```bash
-# Terminal 1 — Dev
-docker-compose -f docker-compose.dev.yml -p jobportal-dev up -d
+# Global
+NODE_ENV=development          # development | test | production
+JWT_SECRET=<64-char-hex>     # Shared across all services. Generate with crypto.randomBytes(64)
 
-# Terminal 2 — Test
-docker-compose -f docker-compose.test.yml -p jobportal-test up -d
+# Database (shared connection params)
+DB_HOST=postgres-dev          # Changes per env: postgres-test, postgres-prod
+DB_PORT=5432
+DB_USER=jobportal
+DB_PASSWORD=<change-me>
 
-# Terminal 3 — Prod
-docker-compose -f docker-compose.prod.yml -p jobportal-prod up -d
+# Service-specific DB names
+USER_SERVICE_DB=user_db
+JOB_SERVICE_DB=job_db
+APPLICATION_SERVICE_DB=application_db
+NOTIFICATION_SERVICE_DB=notification_db
+
+# Postgres container init (must match DB_USER/DB_PASSWORD)
+POSTGRES_USER=jobportal
+POSTGRES_PASSWORD=<change-me>
+POSTGRES_DB=postgres          # Default DB for health checks
+
+# RabbitMQ
+RABBITMQ_USER=jobportal
+RABBITMQ_PASS=<change-me>
+RABBITMQ_URL=amqp://jobportal:<pass>@rabbitmq-dev:5672
+
+# Grafana
+GF_SECURITY_ADMIN_USER=admin
+GF_SECURITY_ADMIN_PASSWORD=<change-me>
 ```
-
-### 2.2 Port Map Table
-
-| Service | Internal Port | Dev (Host) | Test (Host) | Prod (Host) |
-| --- | --- | --- | --- | --- |
-| **Nginx Gateway** | 80 | 3100 | 3200 | 3300 |
-| **User Service** | 3000 | 3101 | 3201 | 3301 |
-| **Job Service** | 3001 | 3102 | 3202 | 3302 |
-| **Application Service** | 3002 | 3103 | 3203 | 3303 |
-| **Notification Service** | 3003 | 3104 | 3204 | 3304 |
-| **PostgreSQL** | 5432 | 3110 | 3210 | 3310 |
-| **RabbitMQ (AMQP)** | 5672 | 3111 | 3211 | 3311 |
-| **RabbitMQ (Mgmt UI)** | 15672 | 3112 | 3212 | 3312 |
-| **Prometheus** | 9090 | 3120 | 3220 | 3320 |
-| **Grafana** | 3000 | 3121 | 3221 | 3321 |
-
-### 2.3 DNS / Service Discovery Strategy
-
-Within each Docker Compose project, services discover each other by **container name**. Environment is embedded in the container/service name:
-
-| Service | Dev Container Name | Test Container Name | Prod Container Name |
-| --- | --- | --- | --- |
-| User Service | `user-service-dev` | `user-service-test` | `user-service-prod` |
-| Job Service | `job-service-dev` | `job-service-test` | `job-service-prod` |
-| Application Service | `app-service-dev` | `app-service-test` | `app-service-prod` |
-| Notification Service | `notif-service-dev` | `notif-service-test` | `notif-service-prod` |
-| PostgreSQL | `postgres-dev` | `postgres-test` | `postgres-prod` |
-| RabbitMQ | `rabbitmq-dev` | `rabbitmq-test` | `rabbitmq-prod` |
-
-**Nginx upstream example** (`nginx/nginx.conf`):
-
-```
-upstream user_service {
-    server user-service-dev:3000;  # name changes per env
-}
-```
-
-**Kubernetes:** In K8s, each service gets a `ClusterIP` Service object. Discovery uses: `<service-name>.<namespace>.svc.cluster.local`
-
-Example: `user-service.jobportal-prod.svc.cluster.local:3000`
 
 ---
 
-## 3. API Contract
+## 5. Port Map
 
-### 3.1 Global Conventions
+| Service | Internal | Dev Host | Test Host | Prod Host |
+|---------|----------|----------|-----------|-----------|
+| Gateway | 80 | 3100 | 3200 | 3300 |
+| User Service | 3000 | 3101 | 3201 | 3301 |
+| Job Service | 3001 | 3102 | 3202 | 3302 |
+| Application Service | 3002 | 3103 | 3203 | 3303 |
+| Notification Service | 3003 | 3104 | 3204 | 3304 |
+| Flutter Web | 80 | 3105 | 3205 | 3305 |
+| PostgreSQL | 5432 | 3110 | 3210 | 3310 |
+| RabbitMQ AMQP | 5672 | 3111 | 3211 | 3311 |
+| RabbitMQ Mgmt UI | 15672 | 3112 | 3212 | 3312 |
+| Prometheus | 9090 | 3120 | — | — |
+| Grafana | 3000 | 3121 | — | — |
+
+**Note:** Prometheus and Grafana exist **only in dev** to save RAM. Test and prod omit them.
+
+---
+
+## 6. Docker Compose Specification
+
+### 6.1 Dev Environment (`docker-compose.dev.yml`)
+
+**Requirements:**
+- Project name: `jobportal-dev`
+- Network: `jobportal-dev-network` (bridge)
+- All services use `restart: unless-stopped`
+- All backend services use `Dockerfile.dev` (nodemon + bind mount)
+- All backend services expose host ports 3101–3104 for debugging
+- Gateway uses `nginx:1.25-alpine` and mounts `nginx.dev.conf`
+- Postgres uses `postgres:16-alpine`, named volume `postgres-dev-data`, mounts `init-databases.sql`
+- RabbitMQ uses `rabbitmq:3.13-management-alpine`, ports 3111 + 3112
+- Prometheus uses `prom/prometheus:v2.50.0`, mounts `prometheus.yml`
+- Grafana uses `grafana/grafana:10.4.0`, mounts provisioning folder
+- **Health checks** on every service (see Section 8)
+- **Depends on with condition:** backend services wait for postgres + rabbitmq healthy. Gateway waits for all backends healthy. Grafana waits for Prometheus healthy.
+
+### 6.2 Test Environment (`docker-compose.test.yml`)
+
+Identical to dev except:
+- Project name: `jobportal-test`
+- Network: `jobportal-test-network`
+- Ports: 3200s
+- Uses production `Dockerfile` (no bind mounts, no nodemon)
+- No Prometheus/Grafana
+- `NODE_ENV=test` explicitly set
+
+### 6.3 Prod Environment (`docker-compose.prod.yml`)
+
+Identical to test except:
+- Project name: `jobportal-prod`
+- Network: `jobportal-prod-network`
+- Ports: 3300s
+- `NODE_ENV=production`
+
+### 6.4 Scripts
+
+**`start-all.sh`:** Runs `docker compose -p jobportal-dev -f docker-compose.dev.yml up -d --build`, then test, then prod. Verifies `.env.*` files exist first.
+
+**`stop-all.sh`:** Runs `docker compose down` for all three environments.
+
+---
+
+## 7. Kubernetes Specification
+
+### 7.1 Manifests
+
+All files live in `k8s/`. Applied in order via `apply-all.sh`:
+
+1. `00-namespace.yml` — creates `jobportal-prod`
+2. `01-configmap.yml` — all non-sensitive env vars
+3. `02-secrets.yml` — base64-encoded secrets
+4. `postgres/deployment.yml` + `service.yml`
+5. `rabbitmq/deployment.yml` + `service.yml`
+6. `user-service/deployment.yml` + `service.yml`
+7. `job-service/deployment.yml` + `service.yml`
+8. `application-service/deployment.yml` + `service.yml`
+9. `notification-service/deployment.yml` + `service.yml`
+10. `app/deployment.yml` + `service.yml`
+11. `gateway/deployment.yml` + `service.yml` (NodePort)
+12. `monitoring/prometheus-deployment.yml` + `service.yml`
+13. `monitoring/grafana-deployment.yml` + `service.yml`
+
+### 7.2 Deployment Requirements
+
+- **Strategy:** `RollingUpdate` for services, `Recreate` for postgres
+- **Replicas:** 2 for each backend service, 1 for postgres/rabbitmq/gateway
+- **Probes:** `readinessProbe` and `livenessProbe` on `/health` for all services
+- **Image pull policy:** `Never` (for Minikube local builds)
+- **Env injection:** `envFrom` referencing ConfigMap + Secret
+
+### 7.3 Service Requirements
+
+- All backend services: `ClusterIP`
+- Gateway: `NodePort` (external entry point, e.g., port 30080)
+- Postgres: `ClusterIP`, port 5432
+- RabbitMQ: `ClusterIP`, ports 5672 + 15672
+
+---
+
+## 8. Health Check Specification
+
+Every service must implement a `/health` endpoint returning HTTP 200 + `{ "status": "ok" }`.
+
+| Service | Health Check Command | Interval | Timeout | Retries | Start Period |
+|---------|---------------------|----------|---------|---------|--------------|
+| Gateway | `curl -fsS http://localhost:80/health` | 10s | 5s | 5 | 5s |
+| User Service | `curl -fsS http://localhost:3000/health` | 10s | 5s | 5 | 10s |
+| Job Service | `curl -fsS http://localhost:3001/health` | 10s | 5s | 5 | 10s |
+| Application Service | `curl -fsS http://localhost:3002/health` | 10s | 5s | 5 | 10s |
+| Notification Service | `curl -fsS http://localhost:3003/health` | 10s | 5s | 5 | 10s |
+| Postgres | `pg_isready -U $POSTGRES_USER -d $POSTGRES_DB` | 5s | 3s | 10 | 5s |
+| RabbitMQ | `rabbitmq-diagnostics -q ping` | 10s | 5s | 5 | 10s |
+| Prometheus | `wget -qO- http://localhost:9090/-/healthy` | 10s | 5s | 3 | 5s |
+| Grafana | `curl -fsS http://localhost:3000/api/health` | 10s | 5s | 5 | 10s |
+
+---
+
+## 9. Flutter Runtime Environment Injection
+
+The Flutter web app cannot bake API URLs at build time (would require 3 separate images). Instead:
+
+1. **`app/docker-entrypoint.sh`** runs on container start. Reads env var `GATEWAY_URL`, writes `{"gatewayUrl": "..."}` to `/usr/share/nginx/html/env.json`.
+2. **`app/env.template.json`** provides the JSON structure template.
+3. **`app/lib/config/env_loader.dart`** fetches `/env.json` via HTTP before `runApp()`. Parses JSON, injects value into `AppConfig`.
+4. **`app/nginx.conf`** serves static files AND the `/env.json` endpoint.
+
+**Result:** Same Docker image runs in dev, test, or prod. Only the injected `GATEWAY_URL` env var changes.
+
+---
+
+## 10. API Contract
+
+### 10.1 Global Conventions
 
 | Convention | Value |
-| --- | --- |
+|------------|-------|
 | Base Path | `/api/v1` |
 | Content-Type | `application/json` |
 | Auth Header | `Authorization: Bearer <JWT>` |
-| Success Envelope | `{ "success": true, "data": { ... } }` |
+| Success Envelope | `{ "success": true, "data": { ... }, "meta": { ... } }` |
 | Error Envelope | `{ "success": false, "error": { "code": "ERROR_CODE", "message": "..." } }` |
-| Pagination | `?page=1&limit=20` → Response includes `meta: { page, limit, total }` |
+| Pagination | `?page=1&limit=20` |
 
-### 3.2 JWT Implementation
+### 10.2 JWT Specification
 
-**Token Generation:** User Service issues JWT on login/register.
+- **Algorithm:** `HS256`
+- **Expiry:** `24h`
+- **Secret:** Shared `JWT_SECRET` env var (identical across all services)
+- **Payload:** `{ "userId": "uuid", "email": "...", "role": "seeker|employer", "iat": timestamp, "exp": timestamp }`
+- **Validation:** Every service validates independently. On failure, return `401` with `INVALID_TOKEN`.
 
-**Algorithm:** `HS256`
+### 10.3 User Service Endpoints
 
-**Expiry:** `24h`
+| Method | Path | Access | Request | Response | Errors |
+|--------|------|--------|---------|----------|--------|
+| POST | `/api/v1/users/register` | Public | `{name, email, password, role}` | `201` + user + token | `409 EMAIL_EXISTS` |
+| POST | `/api/v1/users/login` | Public | `{email, password}` | `200` + user + token | `401 INVALID_CREDENTIALS` |
+| GET | `/api/v1/users/profile` | Auth (any) | — | `200` + user profile | `401 INVALID_TOKEN` |
 
-**JWT Payload (Claims):**
+### 10.4 Job Service Endpoints
 
-```json
-{
-  "userId": "uuid-string",
-  "email": "user@example.com",
-  "role": "seeker | employer",
-  "iat": 1714520000,
-  "exp": 1714606400
-}
-```
+| Method | Path | Access | Request | Response | Errors |
+|--------|------|--------|---------|----------|--------|
+| POST | `/api/v1/jobs` | Auth (employer) | `{title, company, location, description, salary}` | `201` + job | `403 FORBIDDEN` |
+| GET | `/api/v1/jobs` | Public | `?search=&location=&page=&limit=` | `200` + jobs[] + meta | — |
+| GET | `/api/v1/jobs/:id` | Public | — | `200` + job | `404 JOB_NOT_FOUND` |
+| PATCH | `/api/v1/jobs/:id` | Auth (employer, owner) | `{any field}` | `200` + updated job | `403 FORBIDDEN`, `404 NOT_FOUND` |
+| DELETE | `/api/v1/jobs/:id` | Auth (employer, owner) | — | `200` + `{deleted: true}` | `403 FORBIDDEN`, `404 NOT_FOUND` |
 
-**Cross-Service Auth:** Every service validates the JWT independently using a **shared secret** (`JWT_SECRET` injected via environment variable / K8s Secret). No service-to-service auth tokens needed — only the gateway forwards the client's token.
+**Note:** DELETE is a soft delete (set `status = 'closed'`). Jobs table has `status` column with `CHECK (status IN ('active', 'closed'))`.
 
-### 3.3 Auth Endpoints — User Service
+### 10.5 Application Service Endpoints
 
-### `POST /api/v1/users/register`
+| Method | Path | Access | Request | Response | Errors |
+|--------|------|--------|---------|----------|--------|
+| POST | `/api/v1/applications` | Auth (seeker) | `{jobId, coverLetter}` | `201` + application | `409 ALREADY_APPLIED` |
+| GET | `/api/v1/applications` | Auth (any) | `?page=&limit=` | `200` + applications[] + meta | — |
+| PATCH | `/api/v1/applications/:id/status` | Auth (employer, owner) | `{status}` | `200` + updated application | `403 FORBIDDEN`, `404 NOT_FOUND` |
 
-**Access:** Public
+**Status values:** `pending`, `reviewed`, `accepted`, `rejected`. Database has `CHECK` constraint.
 
-**Request:**
+**Side effects:**
+- POST publishes `application.submitted` to RabbitMQ
+- PATCH publishes `application.status_changed` to RabbitMQ
 
-```json
-{
-  "name": "Ahmad Ali",
-  "email": "ahmad@example.com",
-  "password": "SecureP@ss1",
-  "role": "seeker"
-}
-```
+### 10.6 Notification Service Endpoints
 
-> `role` must be `"seeker"` or `"employer"`.
-> 
+| Method | Path | Access | Response |
+|--------|------|--------|----------|
+| GET | `/api/v1/notifications` | Auth (any) | `200` + notifications[] |
 
-**Response `201 Created`:**
-
-```json
-{
-  "success": true,
-  "data": {
-    "user": {
-      "id": "a1b2c3d4-uuid",
-      "name": "Ahmad Ali",
-      "email": "ahmad@example.com",
-      "role": "seeker",
-      "createdAt": "2026-05-01T00:00:00Z"
-    },
-    "token": "eyJhbGciOiJIUzI1NiIs..."
-  }
-}
-```
-
-**Error `409 Conflict`:**
-
-```json
-{
-  "success": false,
-  "error": { "code": "EMAIL_EXISTS", "message": "Email already registered." }
-}
-```
+**Consumer behavior:** `rabbitmq/consumer.js` binds to `application_events` exchange with `application.*` wildcard. On `application.submitted`, inserts notification for `employerId`. On `application.status_changed`, inserts notification for `seekerId`.
 
 ---
 
-### `POST /api/v1/users/login`
+## 11. Monitoring Specification
 
-**Access:** Public
+### 11.1 Prometheus
 
-**Request:**
+- **Scrape interval:** 15s
+- **Targets:** `user-service:3000/metrics`, `job-service:3001/metrics`, `application-service:3002/metrics`, `notification-service:3003/metrics`
+- **Target discovery:** Static config (Docker Compose) or Kubernetes service discovery
 
-```json
-{
-  "email": "ahmad@example.com",
-  "password": "SecureP@ss1"
-}
-```
+### 11.2 Application Metrics
 
-**Response `200 OK`:**
+Each service exposes `/metrics` using `prom-client`:
+- Default Node.js metrics (heap, event loop, GC)
+- Custom histogram: `http_request_duration_seconds` with labels `[method, route, status_code]`
 
-```json
-{
-  "success": true,
-  "data": {
-    "user": {
-      "id": "a1b2c3d4-uuid",
-      "name": "Ahmad Ali",
-      "email": "ahmad@example.com",
-      "role": "seeker"
-    },
-    "token": "eyJhbGciOiJIUzI1NiIs..."
-  }
-}
-```
+### 11.3 Grafana
 
-**Error `401 Unauthorized`:**
-
-```json
-{
-  "success": false,
-  "error": { "code": "INVALID_CREDENTIALS", "message": "Email or password is incorrect." }
-}
-```
+- **Auto-provisioned datasource:** Prometheus at `http://prometheus-dev:9090`
+- **Auto-imported dashboard:** `jobportal-dashboard.json`
+- **Admin credentials:** From `.env.dev` (`GF_SECURITY_ADMIN_USER/PASSWORD`)
 
 ---
 
-### `GET /api/v1/users/profile`
+## 12. Branching Convention
 
-**Access:** Authenticated (any role)
+| Branch Name | Directory Modified | Purpose |
+|-------------|-------------------|---------|
+| `feature/services/user-service` | `services/user-service/` | User backend |
+| `feature/services/job-service` | `services/job-service/` | Job backend |
+| `feature/services/application-service` | `services/application-service/` | Application backend |
+| `feature/services/notification-service` | `services/notification-service/` | Notification backend |
+| `feature/app` | `app/` | Flutter frontend |
+| `feature/gateway` | `gateway/` | Nginx configs |
+| `feature/infra` | `infrastructure/` | Docker Compose, scripts, monitoring |
+| `feature/k8s` | `k8s/` | Kubernetes manifests |
+| `feature/docs` | `docs/`, `README.md` | Documentation |
 
-**Headers:** `Authorization: Bearer <token>`
-
-**Response `200 OK`:**
-
-```json
-{
-  "success": true,
-  "data": {
-    "id": "a1b2c3d4-uuid",
-    "name": "Ahmad Ali",
-    "email": "ahmad@example.com",
-    "role": "seeker",
-    "createdAt": "2026-05-01T00:00:00Z"
-  }
-}
-```
+**Rule:** One branch = one top-level directory. Never mix.
 
 ---
 
-### 3.4 Job Endpoints — Job Service
-
-### `POST /api/v1/jobs`
-
-**Access:** Authenticated — `employer` only
-
-**Request:**
-
-```json
-{
-  "title": "Backend Developer",
-  "company": "TechCorp",
-  "location": "Amman, Jordan",
-  "description": "Build scalable APIs.",
-  "salary": "1500 JOD"
-}
-```
-
-**Response `201 Created`:**
-
-```json
-{
-  "success": true,
-  "data": {
-    "id": "job-uuid-001",
-    "title": "Backend Developer",
-    "company": "TechCorp",
-    "location": "Amman, Jordan",
-    "description": "Build scalable APIs.",
-    "salary": "1500 JOD",
-    "employerId": "emp-uuid-001",
-    "createdAt": "2026-05-01T00:00:00Z"
-  }
-}
-```
-
----
-
-### `GET /api/v1/jobs`
-
-**Access:** Public (or Authenticated)
-
-**Query Params:** `?search=backend&location=Amman&page=1&limit=20`
-
-**Response `200 OK`:**
-
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "id": "job-uuid-001",
-      "title": "Backend Developer",
-      "company": "TechCorp",
-      "location": "Amman, Jordan",
-      "salary": "1500 JOD",
-      "employerId": "emp-uuid-001",
-      "createdAt": "2026-05-01T00:00:00Z"
-    }
-  ],
-  "meta": { "page": 1, "limit": 20, "total": 1 }
-}
-```
-
----
-
-### `GET /api/v1/jobs/:id`
-
-**Access:** Public
-
-**Response `200 OK`:**
-
-```json
-{
-  "success": true,
-  "data": {
-    "id": "job-uuid-001",
-    "title": "Backend Developer",
-    "company": "TechCorp",
-    "location": "Amman, Jordan",
-    "description": "Build scalable APIs.",
-    "salary": "1500 JOD",
-    "employerId": "emp-uuid-001",
-    "createdAt": "2026-05-01T00:00:00Z"
-  }
-}
-```
-
----
-
-### 3.5 Application Endpoints — Application Service
-
-### `POST /api/v1/applications`
-
-**Access:** Authenticated — `seeker` only
-
-**Request:**
-
-```json
-{
-  "jobId": "job-uuid-001",
-  "coverLetter": "I am a great fit for this role..."
-}
-```
-
-**Response `201 Created`:**
-
-```json
-{
-  "success": true,
-  "data": {
-    "id": "app-uuid-001",
-    "jobId": "job-uuid-001",
-    "seekerId": "a1b2c3d4-uuid",
-    "coverLetter": "I am a great fit for this role...",
-    "status": "pending",
-    "createdAt": "2026-05-01T00:00:00Z"
-  }
-}
-```
-
-> **Side Effect:** Publishes `application.submitted` event to RabbitMQ.
-> 
-
----
-
-### `PATCH /api/v1/applications/:id/status`
-
-**Access:** Authenticated — `employer` only
-
-**Request:**
-
-```json
-{
-  "status": "accepted"
-}
-```
-
-> Valid statuses: `"pending"` | `"reviewed"` | `"accepted"` | `"rejected"`
-> 
-
-**Response `200 OK`:**
-
-```json
-{
-  "success": true,
-  "data": {
-    "id": "app-uuid-001",
-    "jobId": "job-uuid-001",
-    "seekerId": "a1b2c3d4-uuid",
-    "status": "accepted",
-    "updatedAt": "2026-05-01T12:00:00Z"
-  }
-}
-```
-
-> **Side Effect:** Publishes `application.status_changed` event to RabbitMQ.
-> 
-
----
-
-### `GET /api/v1/applications?role=seeker`
-
-**Access:** Authenticated
-
-- **Seeker** sees their own applications.
-- **Employer** sees applications for their posted jobs.
-
-**Response `200 OK`:**
-
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "id": "app-uuid-001",
-      "jobId": "job-uuid-001",
-      "seekerId": "a1b2c3d4-uuid",
-      "status": "pending",
-      "createdAt": "2026-05-01T00:00:00Z"
-    }
-  ],
-  "meta": { "page": 1, "limit": 20, "total": 1 }
-}
-```
-
----
-
-### 3.6 Notification Endpoints — Notification Service
-
-### `GET /api/v1/notifications`
-
-**Access:** Authenticated (returns notifications for the logged-in user)
-
-**Response `200 OK`:**
-
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "id": "notif-uuid-001",
-      "userId": "a1b2c3d4-uuid",
-      "message": "Your application for 'Backend Developer' has been accepted!",
-      "read": false,
-      "createdAt": "2026-05-01T12:00:00Z"
-    }
-  ]
-}
-```
-
----
-
-## 4. Infrastructure & DevOps Blueprint
-
-### 4.1 Monorepo Folder Structure
-
-```
-job-portal-microservices-k8s/
-├── services/
-│   ├── user-service/
-│   │   ├── src/
-│   │   ├── Dockerfile              # Production multi-stage
-│   │   ├── Dockerfile.dev          # Dev with nodemon
-│   │   ├── package.json
-│   │   └── .env.example
-│   ├── job-service/
-│   │   ├── src/
-│   │   ├── Dockerfile
-│   │   ├── Dockerfile.dev
-│   │   └── package.json
-│   ├── application-service/
-│   │   ├── src/
-│   │   ├── Dockerfile
-│   │   ├── Dockerfile.dev
-│   │   └── package.json
-│   └── notification-service/
-│       ├── src/
-│       ├── Dockerfile
-│       ├── Dockerfile.dev
-│       └── package.json
-├── gateway/
-│   ├── nginx.dev.conf
-│   ├── nginx.test.conf
-│   ├── nginx.prod.conf
-│   └── Dockerfile
-├── infra/
-│   ├── init-databases.sql
-│   ├── prometheus/
-│   │   └── prometheus.yml
-│   └── grafana/
-│       └── dashboards/
-├── k8s/
-│   ├── namespace.yml
-│   ├── secrets.yml
-│   ├── configmap.yml
-│   ├── user-service/
-│   │   ├── deployment.yml
-│   │   └── service.yml
-│   ├── job-service/
-│   │   ├── deployment.yml
-│   │   └── service.yml
-│   ├── application-service/
-│   │   ├── deployment.yml
-│   │   └── service.yml
-│   ├── notification-service/
-│   │   ├── deployment.yml
-│   │   └── service.yml
-│   ├── postgres/
-│   │   ├── deployment.yml
-│   │   ├── service.yml
-│   │   └── pvc.yml
-│   ├── rabbitmq/
-│   │   ├── deployment.yml
-│   │   └── service.yml
-│   ├── nginx/
-│   │   ├── deployment.yml
-│   │   └── service.yml
-│   └── monitoring/
-│       ├── prometheus-deployment.yml
-│       └── grafana-deployment.yml
-├── docker-compose.dev.yml
-├── docker-compose.test.yml
-├── docker-compose.prod.yml
-└── README.md
-```
-
-### 4.2 Docker Strategy
-
-**Different Images (5 custom + 3 off-the-shelf = 8 total):**
-
-| # | Image | Type |
-| --- | --- | --- |
-| 1 | `jobportal/user-service` | Custom |
-| 2 | `jobportal/job-service` | Custom |
-| 3 | `jobportal/app-service` | Custom |
-| 4 | `jobportal/notif-service` | Custom |
-| 5 | `jobportal/gateway` | Custom (Nginx + config) |
-| 6 | `postgres:16-alpine` | Official |
-| 7 | `rabbitmq:3-management-alpine` | Official |
-| 8 | `prom/prometheus` + `grafana/grafana` | Official |
-
-### Production `Dockerfile` (Multi-Stage)
-
-```docker
-# ---- Stage 1: Build ----
-FROM node:20-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
-COPY src/ ./src/
-
-# ---- Stage 2: Runtime ----
-FROM node:20-alpine AS runtime
-WORKDIR /app
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/src ./src
-COPY package.json ./
-USER appuser
-EXPOSE 3000
-CMD ["node", "src/index.js"]
-```
-
-### Development `Dockerfile.dev`
-
-```docker
-FROM node:20-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm install
-# Source is bind-mounted, not COPY'd
-EXPOSE 3000
-CMD ["npx", "nodemon", "src/index.js"]
-```
-
-**Key Difference:** Dev uses `nodemon` + bind mounts for hot-reload. Prod uses multi-stage for minimal image size (~120MB vs ~300MB).
-
-### 4.3 Docker Compose Environment Differentiation
-
-**`docker-compose.dev.yml` extras:**
-
-- Bind mounts: `./services/user-service/src:/app/src`
-- `NODE_ENV=development`
-- Debug ports exposed
-- `restart: "no"`
-
-**`docker-compose.prod.yml` extras:**
-
-- No bind mounts (baked-in code)
-- `NODE_ENV=production`
-- `restart: always`
-- Resource limits set
-
-### 4.4 Kubernetes Strategy
-
-### Namespace Isolation
-
-```yaml
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: jobportal-prod
-```
-
-### Deployment Strategy — RollingUpdate
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: user-service
-  namespace: jobportal-prod
-spec:
-  replicas: 2
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 0
-      maxSurge: 1
-  selector:
-    matchLabels:
-      app: user-service
-  template:
-    metadata:
-      labels:
-        app: user-service
-    spec:
-      containers:
-        - name: user-service
-          image: jobportal/user-service:1.0.0
-          ports:
-            - containerPort: 3000
-          envFrom:
-            - configMapRef:
-                name: jobportal-config
-            - secretRef:
-                name: jobportal-secrets
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: 3000
-            initialDelaySeconds: 5
-            periodSeconds: 10
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: 3000
-            initialDelaySeconds: 15
-            periodSeconds: 20
-          resources:
-            requests:
-              memory: "128Mi"
-              cpu: "100m"
-            limits:
-              memory: "256Mi"
-              cpu: "250m"
-```
-
-### ConfigMap (Non-Sensitive)
-
-```yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: jobportal-config
-  namespace: jobportal-prod
-data:
-  NODE_ENV: "production"
-  DB_HOST: "postgres-service"
-  DB_PORT: "5432"
-  RABBITMQ_URL: "amqp://rabbitmq-service:5672"
-  USER_SERVICE_DB: "user_db"
-  JOB_SERVICE_DB: "job_db"
-  APP_SERVICE_DB: "application_db"
-  NOTIF_SERVICE_DB: "notification_db"
-```
-
-### Secrets (Sensitive)
-
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: jobportal-secrets
-  namespace: jobportal-prod
-type: Opaque
-data:
-  JWT_SECRET: <base64-encoded>
-  DB_USER: <base64-encoded>
-  DB_PASSWORD: <base64-encoded>
-  RABBITMQ_USER: <base64-encoded>
-  RABBITMQ_PASS: <base64-encoded>
-```
-
-### Service (ClusterIP)
-
-```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: user-service
-  namespace: jobportal-prod
-spec:
-  type: ClusterIP
-  selector:
-    app: user-service
-  ports:
-    - port: 3000
-      targetPort: 3000
-```
-
-### 4.5 Monitoring Strategy
-
-### Prometheus Scrape Configuration (`infra/prometheus/prometheus.yml`)
-
-```yaml
-global:
-  scrape_interval: 15s
-
-scrape_configs:
-  - job_name: "user-service"
-    static_configs:
-      - targets: ["user-service:3000"]
-    metrics_path: "/metrics"
-
-  - job_name: "job-service"
-    static_configs:
-      - targets: ["job-service:3001"]
-    metrics_path: "/metrics"
-
-  - job_name: "application-service"
-    static_configs:
-      - targets: ["application-service:3002"]
-    metrics_path: "/metrics"
-
-  - job_name: "notification-service"
-    static_configs:
-      - targets: ["notification-service:3003"]
-    metrics_path: "/metrics"
-```
-
-### Application-Level Metrics
-
-Each service exposes a `/metrics` endpoint using `prom-client` (Node.js):
-
-```jsx
-// src/metrics.js — shared across all services
-const client = require('prom-client');
-const register = new client.Registry();
-
-client.collectDefaultMetrics({ register });
-
-const httpRequestDuration = new client.Histogram({
-  name: 'http_request_duration_seconds',
-  help: 'Duration of HTTP requests in seconds',
-  labelNames: ['method', 'route', 'status_code'],
-  buckets: [0.01, 0.05, 0.1, 0.5, 1, 5],
-});
-register.registerMetric(httpRequestDuration);
-
-module.exports = { register, httpRequestDuration };
-```
-
-### Grafana Dashboards
-
-| Dashboard | Panels |
-| --- | --- |
-| **Service Health** | Request rate, Error rate (4xx/5xx), P95 latency per service |
-| **Infrastructure** | CPU/Memory per container, PostgreSQL connections, RabbitMQ queue depth |
-
----
+## 13. Rubric Compliance Checklist
+
+| Requirement | Proof Point |
+|-------------|-------------|
+| ≥3 services | 4 backend + 1 gateway + 1 frontend = 6 services |
+| Independent, loosely coupled | Each service has own DB, own Dockerfile, talks via HTTP or RabbitMQ |
+| ≥3 custom Docker images | 6 custom images (app, user, job, application, notification, gateway) |
+| Docker + Docker Compose | 3 compose files, start-all.sh, stop-all.sh |
+| Multi-environment | dev/test/prod with isolated networks and port ranges |
+| Simultaneous environments | `start-all.sh` spins up all 3 at once |
+| Kubernetes | Full manifests in `k8s/`, apply-all.sh, NodePort gateway |
+| Monitoring + Logging (Bonus) | Prometheus + Grafana in dev, /metrics on all services |
+| Async communication (Bonus) | RabbitMQ publisher + consumer between Application and Notification |
+| Documentation | This README + docs/ directory |
+| Linux host | Ubuntu 22.04 VM in VirtualBox |
