@@ -12,10 +12,32 @@ import 'features/auth/domain/usecases/login_usecase.dart';
 import 'features/auth/domain/usecases/logout_usecase.dart';
 import 'features/auth/domain/usecases/register_usecase.dart';
 import 'features/auth/presentation/manager/auth_bloc.dart';
-
+// Notification Feature
+import 'features/notifications/data/datasources/notification_remote_datasource.dart';
+import 'features/notifications/data/repositories/notification_repository_impl.dart';
+import 'features/notifications/domain/repositories/notification_repository.dart';
+import 'features/notifications/domain/usecases/get_notifications_usecase.dart';
+import 'features/notifications/domain/usecases/mark_as_read_usecase.dart';
+import 'features/notifications/presentation/manager/notification_bloc.dart';
+// Applications Feature
+import 'features/applications/data/datasources/application_remote_datasource.dart';
+import 'features/applications/data/repositories/application_repository_impl.dart';
+import 'features/applications/domain/repositories/application_repository.dart';
+import 'features/applications/domain/usecases/apply_for_job_usecase.dart';
+import 'features/applications/domain/usecases/get_applications_usecase.dart';
+import 'features/applications/domain/usecases/update_application_status_usecase.dart';
+import 'features/applications/presentation/manager/application_bloc.dart';
 final sl = GetIt.instance;
 
 Future<void> init() async {
+  // ===========================================================================
+  // Core
+  // ===========================================================================
+
+  sl.registerLazySingleton(() => AuthStorage());
+  sl.registerLazySingleton(() => ApiClient(sl()));
+
+
   // ===========================================================================
   // Feature: Auth
   // ===========================================================================
@@ -43,10 +65,54 @@ Future<void> init() async {
   // Data Sources
   sl.registerLazySingleton(() => AuthRemoteDataSource(sl()));
 
+
   // ===========================================================================
-  // Core
+  // Feature: Notifications
   // ===========================================================================
 
-  sl.registerLazySingleton(() => AuthStorage());
-  sl.registerLazySingleton(() => ApiClient(sl()));
+  // BLoCs
+  sl.registerFactory(
+        () => NotificationBloc(
+      getNotificationsUseCase: sl(),
+      markNotificationReadUseCase: sl(),
+    ),
+  );
+
+  // Use Cases
+  sl.registerLazySingleton(() => GetNotificationsUseCase(sl()));
+  sl.registerLazySingleton(() => MarkAsReadUseCase(sl()));
+
+  // Repositories
+  sl.registerLazySingleton<NotificationRepository>(
+        () => NotificationRepositoryImpl(sl()),
+  );
+
+  // Data Sources
+  sl.registerLazySingleton(() => NotificationRemoteDataSource(sl()));
+
+  // ===========================================================================
+  // Feature: Applications
+  // ===========================================================================
+
+  // BLoC
+  sl.registerFactory(
+        () => ApplicationBloc(
+      getApplicationsUseCase: sl(),
+      applyForJobUseCase: sl(),
+      updateStatusUseCase: sl(),
+    ),
+  );
+
+  // Use Cases
+  sl.registerLazySingleton(() => GetApplicationsUseCase(sl()));
+  sl.registerLazySingleton(() => ApplyForJobUseCase(sl()));
+  sl.registerLazySingleton(() => UpdateApplicationStatusUseCase(sl()));
+
+  // Repositories
+  sl.registerLazySingleton<ApplicationRepository>(
+        () => ApplicationRepositoryImpl(sl()),
+  );
+
+  // Data Sources
+  sl.registerLazySingleton(() => ApplicationRemoteDataSource(sl()));
 }
