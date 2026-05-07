@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: jobportal-prod
+  labels:
+    name: jobportal-prod
+    environment: production
