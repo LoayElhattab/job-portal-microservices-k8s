@@ -7,20 +7,12 @@ class ApiError {
     return ApiError.error('VALIDATION_ERROR', message);
   }
 
-  static emailExists() {
-    return ApiError.error('EMAIL_EXISTS', 'Email is already registered');
-  }
-
-  static invalidCredentials() {
-    return ApiError.error('INVALID_CREDENTIALS', 'Invalid email or password');
-  }
-
   static invalidToken() {
     return ApiError.error('INVALID_TOKEN', 'Token is invalid or expired');
   }
 
-  static notFound(resource = 'Resource') {
-    return ApiError.error('NOT_FOUND', `${resource} not found`);
+  static notFound(resource = 'Job') {
+    return ApiError.error('JOB_NOT_FOUND', `${resource} not found`);
   }
 
   static forbidden() {
