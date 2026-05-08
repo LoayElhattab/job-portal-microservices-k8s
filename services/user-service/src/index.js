@@ -23,11 +23,15 @@ app.use('/api/v1/users', usersRouter);
 
 app.use(errorHandler);
 
-connectWithRetry()
-    .then(() => {
-        app.listen(PORT, () => console.log(`User service running on port ${PORT}`));
-    })
-    .catch((err) => {
-        console.error('Failed to connect to database:', err.message);
-        process.exit(1);
-    });
+if (process.env.NODE_ENV !== 'test') {
+    connectWithRetry()
+        .then(() => {
+            app.listen(PORT, () => console.log(`User service running on port ${PORT}`));
+        })
+        .catch((err) => {
+            console.error('Failed to connect to database:', err.message);
+            process.exit(1);
+        });
+}
+
+module.exports = app;
