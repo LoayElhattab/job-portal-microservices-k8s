@@ -23,11 +23,15 @@ app.use('/api/v1/jobs', jobsRouter);
 
 app.use(errorHandler);
 
-connectWithRetry()
-  .then(() => {
-    app.listen(PORT, () => console.log(`Job service running on port ${PORT}`));
-  })
-  .catch((err) => {
-    console.error('Failed to connect to database:', err.message);
-    process.exit(1);
-  });
+module.exports = app;
+
+if (process.env.NODE_ENV !== 'test') {
+  connectWithRetry()
+    .then(() => {
+      app.listen(PORT, () => console.log(`Job service running on port ${PORT}`));
+    })
+    .catch((err) => {
+      console.error('Failed to connect to database:', err.message);
+      process.exit(1);
+    });
+}
