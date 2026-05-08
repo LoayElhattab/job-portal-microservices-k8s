@@ -12,15 +12,15 @@ const connectWithRetry = async (retries = 10, delay = 3000) => {
   for (let i = 0; i < retries; i++) {
     try {
       await pool.query('SELECT 1');
-      console.log('✅ Successfully connected to PostgreSQL (Application DB)');
+      console.log('Successfully connected to PostgreSQL (Application DB)');
       await runMigrations();
       return;
     } catch (err) {
-      console.error(`⏳ Database connection failed. Retrying in ${delay / 1000}s... (${i + 1}/${retries})`);
+      console.error(`Database connection failed. Retrying in ${delay / 1000}s... (${i + 1}/${retries})`);
       await new Promise(res => setTimeout(res, delay));
     }
   }
-  console.error('❌ Failed to connect to the database after maximum retries. Exiting...');
+  console.error('Failed to connect to the database after maximum retries. Exiting...');
   process.exit(1);
 };
 
@@ -39,9 +39,9 @@ const runMigrations = async () => {
   `;
   try {
     await pool.query(createTableQuery);
-    console.log('✅ Application table migration complete.');
+    console.log('Application table migration complete.');
   } catch (err) {
-    console.error('❌ Migration failed:', err);
+    console.error('Migration failed:', err);
   }
 };
 

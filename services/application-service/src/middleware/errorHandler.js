@@ -1,10 +1,18 @@
+const { ApiError } = require('../utils/ApiError');
+
 const errorHandler = (err, req, res, next) => {
-  console.error('🔥 Error:', err.message);
+
+  if (err instanceof ApiError) {
+    return res.status(err.statusCode).json({
+      success: false,
+      error: { code: err.code, message: err.message }
+    });
+  }
 
   if (err.code === '23505') {
-    return res.status(400).json({
+    return res.status(409).json({
       success: false,
-      error: { code: 'DUPLICATE_ENTRY', message: 'You have already applied for this job.' }
+      error: { code: 'ALREADY_APPLIED', message: 'You have already applied for this job.' }
     });
   }
 

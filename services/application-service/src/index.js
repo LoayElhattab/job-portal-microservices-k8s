@@ -1,8 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const { connectWithRetry } = require('./db');
-const { connectRabbitMQ } = require('./rabbitmq/publisher');
-const applicationRoutes = require('./routes/applications');
+const { connectRabbitMQ } = require('../rabbitmq/publisher');
+const applicationRoutes = require('./routes/applications.routes');
 const { errorHandler } = require('./middleware/errorHandler');
 const { register, metricsMiddleware } = require('./metrics');
 
@@ -20,7 +20,7 @@ app.get('/metrics', async (req, res) => {
   res.end(await register.metrics());
 });
 
-app.get('/health', (req, res) => res.status(200).json({ status: 'UP' }));
+app.get('/health', (req, res) => res.status(200).json({ status: 'ok' }));
 app.use(errorHandler);
 
 const startService = async () => {
@@ -28,8 +28,12 @@ const startService = async () => {
   await connectRabbitMQ();
 
   app.listen(PORT, () => {
-    console.log(`🚀 Application Service running on port ${PORT}`);
+    console.log(`Application Service running on port ${PORT}`);
   });
 };
 
-startService();
+if (require.main === module) {
+  startService();
+}
+
+module.exports = app;
