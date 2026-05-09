@@ -1,0 +1,24 @@
+name: Infrastructure CI
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - main
+    paths:
+      - 'infrastructure/**'
+
+jobs:
+  validate:
+    name: Validate Infrastructure
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate Databases Script
+        run: cat infrastructure/databases/init-databases.sql
+
+      - name: Run shellcheck
+        run: shellcheck --severity=warning infrastructure/scripts/*.sh
