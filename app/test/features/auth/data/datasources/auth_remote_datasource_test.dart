@@ -32,7 +32,7 @@ void main() {
         'success': true,
         'data': {
           'token': 'test-token',
-          'user': {'id': '1', 'email': tEmail, 'role': tRole}
+          'user': {'id': 1, 'email': tEmail, 'role': tRole}
         }
       };
       
@@ -84,7 +84,7 @@ void main() {
         'success': true,
         'data': {
           'token': 'test-token',
-          'user': {'id': '1', 'email': tEmail, 'role': tRole}
+          'user': {'id': 1, 'email': tEmail, 'role': tRole}
         }
       };
       

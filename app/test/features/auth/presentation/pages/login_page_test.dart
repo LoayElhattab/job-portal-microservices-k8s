@@ -57,13 +57,13 @@ void main() {
     when(mockAuthBloc.state).thenReturn(AuthInitial());
     whenListen(
       mockAuthBloc,
-      Stream.fromIterable([const AuthError('Test Error')]),
+      Stream.fromIterable([AuthError('Test Error')]),
     );
 
     await tester.pumpWidget(createWidgetUnderTest());
     
     // Trigger the listener by emitting error state
-    mockAuthBloc.emit(const AuthError('Test Error'));
+    mockAuthBloc.emit(AuthError('Test Error'));
     await tester.pump(); // Start animation
     await tester.pump(const Duration(milliseconds: 750)); // Wait for snackbar
 

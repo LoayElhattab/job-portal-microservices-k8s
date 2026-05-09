@@ -23,18 +23,15 @@ void main() {
     when(mockAuthStorage.getToken()).thenAnswer((_) async => tToken);
     final options = RequestOptions(path: '/test');
     final handler = MockRequestInterceptorHandler();
+    when(handler.next(any)).thenReturn(null);
 
     // act
     apiInterceptor.onRequest(options, handler);
 
-    // assert
-    // Since onRequest is async, we might need a small delay or use a fake handler
-    // Actually, in Dio Interceptor, the call to super.onRequest is synchronous after the await.
-    // However, the onRequest method itself is marked async in our lib.
-    
-    // We can wait for the event loop
+    // Wait for the async getToken call to complete
     await Future.delayed(Duration.zero);
-    
+
+    // assert
     expect(options.headers['Authorization'], 'Bearer $tToken');
     verify(handler.next(options)).called(1);
   });
@@ -44,6 +41,7 @@ void main() {
     when(mockAuthStorage.getToken()).thenAnswer((_) async => null);
     final options = RequestOptions(path: '/test');
     final handler = MockRequestInterceptorHandler();
+    when(handler.next(any)).thenReturn(null);
 
     // act
     apiInterceptor.onRequest(options, handler);
@@ -58,6 +56,7 @@ void main() {
     // arrange
     final dioException = DioException(requestOptions: RequestOptions(path: '/test'));
     final handler = MockErrorInterceptorHandler();
+    when(handler.next(any)).thenReturn(null);
 
     // act
     apiInterceptor.onError(dioException, handler);
