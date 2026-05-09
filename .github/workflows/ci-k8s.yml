@@ -1,0 +1,30 @@
+name: Kubernetes CI
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - main
+    paths:
+      - 'k8s/**'
+
+jobs:
+  validate:
+    name: Validate Kubernetes Manifests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Validate YAML files
+        run: |
+          kubectl config set-cluster dummy-cluster --server=https://127.0.0.1:6443
+          kubectl config set-credentials dummy-user --token=dummy
+          kubectl config set-context dummy-context --cluster=dummy-cluster --user=dummy-user
+          kubectl config use-context dummy-context
+          
+          find k8s -name '*.yml' -exec kubectl apply --dry-run=client -f {} \;
