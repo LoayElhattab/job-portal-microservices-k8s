@@ -26,6 +26,10 @@ jobs:
         working-directory: app/
         run: flutter pub get
 
+      - name: Generate mocks (build_runner)
+        working-directory: app/
+        run: dart run build_runner build --delete-conflicting-outputs
+
       - name: Run tests
         working-directory: app/
         run: flutter test
