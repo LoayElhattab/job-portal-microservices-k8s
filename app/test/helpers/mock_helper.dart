@@ -16,9 +16,11 @@ import 'package:jobportal_app/features/applications/domain/repositories/applicat
 import 'package:jobportal_app/features/applications/data/datasources/application_remote_datasource.dart';
 import 'package:jobportal_app/features/applications/domain/usecases/get_applications_usecase.dart';
 import 'package:jobportal_app/features/applications/domain/usecases/apply_for_job_usecase.dart';
+import 'package:jobportal_app/features/applications/domain/usecases/update_application_status_usecase.dart'; 
 import 'package:jobportal_app/features/notifications/domain/repositories/notification_repository.dart';
 import 'package:jobportal_app/features/notifications/data/datasources/notification_remote_datasource.dart';
 import 'package:jobportal_app/features/notifications/domain/usecases/get_notifications_usecase.dart';
+import 'package:jobportal_app/features/notifications/domain/usecases/mark_as_read_usecase.dart'; 
 import 'package:jobportal_app/features/profile/domain/repositories/profile_repository.dart';
 import 'package:jobportal_app/features/profile/data/datasources/profile_remote_datasource.dart';
 import 'package:jobportal_app/features/profile/domain/usecases/get_profile_usecase.dart';
