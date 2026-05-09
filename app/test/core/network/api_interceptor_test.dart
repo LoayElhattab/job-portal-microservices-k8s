@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:dio/dio.dart';
 import 'package:jobportal_app/core/network/api_interceptor.dart';
-import '../helpers/mock_helper.mocks.dart';
+import '../../helpers/mock_helper.mocks.dart';
 
 void main() {
   late ApiInterceptor apiInterceptor;

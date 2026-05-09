@@ -5,7 +5,7 @@ import 'package:mockito/mockito.dart';
 import 'package:jobportal_app/core/errors/failures.dart';
 import 'package:jobportal_app/features/job/domain/entities/job.dart';
 import 'package:jobportal_app/features/job/presentation/manager/job_bloc.dart';
-import '../../../helpers/mock_helper.mocks.dart';
+import '../../../../helpers/mock_helper.mocks.dart';
 
 void main() {
   late JobBloc jobBloc;

@@ -5,7 +5,7 @@ import 'package:jobportal_app/features/notifications/domain/entities/notificatio
 import 'package:jobportal_app/features/notifications/presentation/manager/notification_bloc.dart';
 import 'package:jobportal_app/features/notifications/presentation/manager/notification_event.dart';
 import 'package:jobportal_app/features/notifications/presentation/manager/notification_state.dart';
-import '../../../helpers/mock_helper.mocks.dart';
+import '../../../../helpers/mock_helper.mocks.dart';
 
 void main() {
   late NotificationBloc notificationBloc;

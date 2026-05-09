@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:jobportal_app/features/auth/data/repositories/auth_repository_impl.dart';
 import 'package:jobportal_app/features/auth/domain/entities/user.dart';
-import '../../../helpers/mock_helper.mocks.dart';
+import '../../../../helpers/mock_helper.mocks.dart';
 
 void main() {
   late AuthRepositoryImpl repository;

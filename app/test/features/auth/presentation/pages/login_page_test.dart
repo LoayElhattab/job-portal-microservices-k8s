@@ -58,7 +58,7 @@ void main() {
     when(() => mockAuthBloc.state).thenReturn(AuthInitial());
     whenListen(
       mockAuthBloc,
-      Stream.fromIterable([const AuthError('Test Error')]),
+      Stream.fromIterable([AuthError('Test Error')]),
       initialState: AuthInitial(),
     );
 

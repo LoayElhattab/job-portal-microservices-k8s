@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:jobportal_app/core/network/auth_storage.dart';
-import '../helpers/mock_helper.mocks.dart';
+import '../../helpers/mock_helper.mocks.dart';
 
 void main() {
   late AuthStorage authStorage;
