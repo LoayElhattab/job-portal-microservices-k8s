@@ -2,16 +2,10 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:jobportal_app/features/applications/domain/entities/application.dart';
-import 'package:jobportal_app/features/applications/domain/usecases/apply_for_job_usecase.dart';
-import 'package:jobportal_app/features/applications/domain/usecases/get_applications_usecase.dart';
-import 'package:jobportal_app/features/applications/domain/usecases/update_application_status_usecase.dart';
 import 'package:jobportal_app/features/applications/presentation/manager/application_bloc.dart';
 import 'package:jobportal_app/features/applications/presentation/manager/application_event.dart';
 import 'package:jobportal_app/features/applications/presentation/manager/application_state.dart';
-
-class MockGetApplicationsUseCase extends Mock implements GetApplicationsUseCase {}
-class MockApplyForJobUseCase extends Mock implements ApplyForJobUseCase {}
-class MockUpdateApplicationStatusUseCase extends Mock implements UpdateApplicationStatusUseCase {}
+import '../../../helpers/mock_helper.mocks.dart';
 
 void main() {
   late ApplicationBloc applicationBloc;
@@ -85,7 +79,7 @@ void main() {
         when(mockGetApplicationsUseCase()).thenAnswer((_) async => tApplications);
         return applicationBloc;
       },
-      act: (bloc) => bloc.add(ApplyForJobEvent(jobId: 1, employerId: 1, coverLetter: 'Hi')),
+      act: (bloc) => bloc.add(const ApplyForJobEvent(jobId: 1, employerId: 1, coverLetter: 'Hi')),
       expect: () => [
         isA<ApplicationLoading>(),
         isA<ApplicationActionSuccess>(),
@@ -100,7 +94,7 @@ void main() {
         when(mockApplyForJobUseCase(1, 1, 'Hi')).thenThrow(Exception('DUPLICATE_ENTRY'));
         return applicationBloc;
       },
-      act: (bloc) => bloc.add(ApplyForJobEvent(jobId: 1, employerId: 1, coverLetter: 'Hi')),
+      act: (bloc) => bloc.add(const ApplyForJobEvent(jobId: 1, employerId: 1, coverLetter: 'Hi')),
       expect: () => [
         isA<ApplicationLoading>(),
         isA<ApplicationError>(),

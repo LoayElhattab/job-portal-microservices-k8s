@@ -1,12 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
-import 'package:jobportal_app/core/network/auth_storage.dart';
-import 'package:jobportal_app/features/auth/data/datasources/auth_remote_datasource.dart';
 import 'package:jobportal_app/features/auth/data/repositories/auth_repository_impl.dart';
 import 'package:jobportal_app/features/auth/domain/entities/user.dart';
-
-class MockAuthRemoteDataSource extends Mock implements AuthRemoteDataSource {}
-class MockAuthStorage extends Mock implements AuthStorage {}
+import '../../../helpers/mock_helper.mocks.dart';
 
 void main() {
   late AuthRepositoryImpl repository;

@@ -4,10 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:jobportal_app/core/errors/failures.dart';
 import 'package:jobportal_app/features/job/domain/entities/job.dart';
-import 'package:jobportal_app/features/job/domain/usecases/get_jobs_usecase.dart';
 import 'package:jobportal_app/features/job/presentation/manager/job_bloc.dart';
-
-class MockGetJobsUseCase extends Mock implements GetJobsUseCase {}
+import '../../../helpers/mock_helper.mocks.dart';
 
 void main() {
   late JobBloc jobBloc;

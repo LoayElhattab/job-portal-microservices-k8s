@@ -2,14 +2,10 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:jobportal_app/features/notifications/domain/entities/notification.dart';
-import 'package:jobportal_app/features/notifications/domain/usecases/get_notifications_usecase.dart';
-import 'package:jobportal_app/features/notifications/domain/usecases/mark_as_read_usecase.dart';
 import 'package:jobportal_app/features/notifications/presentation/manager/notification_bloc.dart';
 import 'package:jobportal_app/features/notifications/presentation/manager/notification_event.dart';
 import 'package:jobportal_app/features/notifications/presentation/manager/notification_state.dart';
-
-class MockGetNotificationsUseCase extends Mock implements GetNotificationsUseCase {}
-class MockMarkAsReadUseCase extends Mock implements MarkAsReadUseCase {}
+import '../../../helpers/mock_helper.mocks.dart';
 
 void main() {
   late NotificationBloc notificationBloc;

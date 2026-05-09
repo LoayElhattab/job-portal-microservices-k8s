@@ -4,12 +4,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:jobportal_app/core/errors/failures.dart';
 import 'package:jobportal_app/features/profile/domain/entities/profile.dart';
-import 'package:jobportal_app/features/profile/domain/usecases/get_profile_usecase.dart';
 import 'package:jobportal_app/features/profile/presentation/manager/profile_bloc.dart';
 import 'package:jobportal_app/features/profile/presentation/manager/profile_event.dart';
 import 'package:jobportal_app/features/profile/presentation/manager/profile_state.dart';
-
-class MockGetProfileUseCase extends Mock implements GetProfileUseCase {}
+import '../../../helpers/mock_helper.mocks.dart';
 
 void main() {
   late ProfileBloc profileBloc;

@@ -2,16 +2,10 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:jobportal_app/features/auth/domain/entities/user.dart';
-import 'package:jobportal_app/features/auth/domain/usecases/login_usecase.dart';
-import 'package:jobportal_app/features/auth/domain/usecases/logout_usecase.dart';
-import 'package:jobportal_app/features/auth/domain/usecases/register_usecase.dart';
 import 'package:jobportal_app/features/auth/presentation/manager/auth_bloc.dart';
 import 'package:jobportal_app/features/auth/presentation/manager/auth_event.dart';
 import 'package:jobportal_app/features/auth/presentation/manager/auth_state.dart';
-
-class MockLoginUseCase extends Mock implements LoginUseCase {}
-class MockRegisterUseCase extends Mock implements RegisterUseCase {}
-class MockLogoutUseCase extends Mock implements LogoutUseCase {}
+import '../../../helpers/mock_helper.mocks.dart';
 
 void main() {
   late AuthBloc authBloc;
@@ -48,7 +42,7 @@ void main() {
             .thenAnswer((_) async => tUser);
         return authBloc;
       },
-      act: (bloc) => bloc.add(LoginRequested('test@example.com', 'password')),
+      act: (bloc) => bloc.add(const LoginRequested('test@example.com', 'password')),
       expect: () => [
         isA<AuthLoading>(),
         isA<AuthAuthenticated>(),
@@ -62,7 +56,7 @@ void main() {
             .thenThrow(Exception('Login failed'));
         return authBloc;
       },
-      act: (bloc) => bloc.add(LoginRequested('test@example.com', 'password')),
+      act: (bloc) => bloc.add(const LoginRequested('test@example.com', 'password')),
       expect: () => [
         isA<AuthLoading>(),
         isA<AuthError>(),
@@ -78,7 +72,7 @@ void main() {
             .thenAnswer((_) async => tUser);
         return authBloc;
       },
-      act: (bloc) => bloc.add(RegisterRequested('test@example.com', 'password', 'seeker')),
+      act: (bloc) => bloc.add(const RegisterRequested('test@example.com', 'password', 'seeker')),
       expect: () => [
         isA<AuthLoading>(),
         isA<AuthAuthenticated>(),
@@ -92,7 +86,7 @@ void main() {
             .thenThrow(Exception('Registration failed'));
         return authBloc;
       },
-      act: (bloc) => bloc.add(RegisterRequested('test@example.com', 'password', 'seeker')),
+      act: (bloc) => bloc.add(const RegisterRequested('test@example.com', 'password', 'seeker')),
       expect: () => [
         isA<AuthLoading>(),
         isA<AuthError>(),
@@ -107,7 +101,7 @@ void main() {
         when(mockLogoutUseCase()).thenAnswer((_) async => null);
         return authBloc;
       },
-      act: (bloc) => bloc.add(LogoutRequested()),
+      act: (bloc) => bloc.add(const LogoutRequested()),
       expect: () => [
         isA<AuthLoading>(),
         isA<AuthUnauthenticated>(),

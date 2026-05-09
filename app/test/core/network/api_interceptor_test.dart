@@ -2,11 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:dio/dio.dart';
 import 'package:jobportal_app/core/network/api_interceptor.dart';
-import 'package:jobportal_app/core/network/auth_storage.dart';
-
-class MockAuthStorage extends Mock implements AuthStorage {}
-class MockRequestInterceptorHandler extends Mock implements RequestInterceptorHandler {}
-class MockErrorInterceptorHandler extends Mock implements ErrorInterceptorHandler {}
+import '../helpers/mock_helper.mocks.dart';
 
 void main() {
   late ApiInterceptor apiInterceptor;
@@ -23,7 +19,6 @@ void main() {
     when(mockAuthStorage.getToken()).thenAnswer((_) async => tToken);
     final options = RequestOptions(path: '/test');
     final handler = MockRequestInterceptorHandler();
-    when(handler.next(any)).thenReturn(null);
 
     // act
     apiInterceptor.onRequest(options, handler);
@@ -41,7 +36,6 @@ void main() {
     when(mockAuthStorage.getToken()).thenAnswer((_) async => null);
     final options = RequestOptions(path: '/test');
     final handler = MockRequestInterceptorHandler();
-    when(handler.next(any)).thenReturn(null);
 
     // act
     apiInterceptor.onRequest(options, handler);
@@ -56,7 +50,6 @@ void main() {
     // arrange
     final dioException = DioException(requestOptions: RequestOptions(path: '/test'));
     final handler = MockErrorInterceptorHandler();
-    when(handler.next(any)).thenReturn(null);
 
     // act
     apiInterceptor.onError(dioException, handler);
