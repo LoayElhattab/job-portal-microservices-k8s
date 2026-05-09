@@ -1,0 +1,23 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'user-service'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['user-service-dev:3000']
+
+  - job_name: 'job-service'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['job-service-dev:3001']
+
+  - job_name: 'application-service'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['application-service-dev:3002']
+
+  - job_name: 'notification-service'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['notification-service-dev:3003']
