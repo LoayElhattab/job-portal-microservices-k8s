@@ -258,68 +258,108 @@ job-portal/
 ├── services/
 │   ├── user-service/                         # Custom Image #2
 │   │   ├── src/
-│   │   │   ├── index.js                      # Express entry point
-│   │   │   ├── db.js                         # Postgres pool + migration + retry loop
-│   │   │   ├── metrics.js                    # prom-client registry + HTTP histogram
+│   │   │   ├── controllers/
+│   │   │   │   └── users.controller.js       # Express route handlers
+│   │   │   ├── middleware/
+│   │   │   │   ├── auth.js                   # JWT verify, attach {userId, email, role}
+│   │   │   │   └── errorHandler.js           # Global error handler, spec envelope
 │   │   │   ├── routes/
-│   │   │   │   └── users.js                  # POST /register, POST /login, GET /profile
-│   │   │   └── middleware/
-│   │   │       ├── auth.js                   # JWT verify, attach {userId, email, role}
-│   │   │       └── errorHandler.js           # Global error handler, spec envelope
+│   │   │   │   └── users.routes.js           # Route definitions → controller
+│   │   │   ├── services/
+│   │   │   │   └── users.service.js          # Business logic + DB queries
+│   │   │   ├── utils/
+│   │   │   │   ├── ApiError.js               # Custom error class
+│   │   │   │   └── ApiResponse.js            # Success envelope helper
+│   │   │   ├── index.js                      # Express entry point, /health, /metrics
+│   │   │   ├── db.js                         # Postgres pool + migration (users table) + retry loop
+│   │   │   └── metrics.js                    # prom-client registry + HTTP histogram
+│   │   ├── __tests__/
+│   │   │   └── users.test.js                 # Jest + Supertest API tests
 │   │   ├── Dockerfile                        # Multi-stage production build
 │   │   ├── Dockerfile.dev                    # nodemon + bind mount
+│   │   ├── jest.config.js
 │   │   ├── .dockerignore
 │   │   ├── package.json
 │   │   └── .env.example
 │   │
 │   ├── job-service/                          # Custom Image #3
 │   │   ├── src/
-│   │   │   ├── index.js
-│   │   │   ├── db.js
-│   │   │   ├── metrics.js
+│   │   │   ├── controllers/
+│   │   │   │   └── jobs.controller.js        # Express route handlers
+│   │   │   ├── middleware/
+│   │   │   │   ├── auth.js
+│   │   │   │   └── errorHandler.js
 │   │   │   ├── routes/
-│   │   │   │   └── jobs.js                   # CRUD + search + pagination
-│   │   │   └── middleware/
-│   │   │       ├── auth.js
-│   │   │       └── errorHandler.js
+│   │   │   │   └── jobs.routes.js            # Route definitions → controller
+│   │   │   ├── services/
+│   │   │   │   └── jobs.service.js           # Business logic + DB queries
+│   │   │   ├── utils/
+│   │   │   │   ├── ApiError.js
+│   │   │   │   └── ApiResponse.js
+│   │   │   ├── index.js                      # Express entry point, /health, /metrics
+│   │   │   ├── db.js                         # Postgres pool + migration (jobs table) + retry loop
+│   │   │   └── metrics.js
+│   │   ├── __tests__/
+│   │   │   └── jobs.test.js                  # Jest + Supertest API tests
 │   │   ├── Dockerfile
 │   │   ├── Dockerfile.dev
+│   │   ├── jest.config.js
 │   │   ├── .dockerignore
 │   │   ├── package.json
 │   │   └── .env.example
 │   │
 │   ├── application-service/                  # Custom Image #4
 │   │   ├── src/
-│   │   │   ├── index.js
-│   │   │   ├── db.js
-│   │   │   ├── metrics.js
+│   │   │   ├── controllers/
+│   │   │   │   └── applications.controller.js
+│   │   │   ├── middleware/
+│   │   │   │   ├── auth.js
+│   │   │   │   └── errorHandler.js
 │   │   │   ├── routes/
-│   │   │   │   └── applications.js           # Apply, list, update status
-│   │   │   ├── rabbitmq/
-│   │   │   │   └── publisher.js              # Connects to exchange, publishes events
-│   │   │   └── middleware/
-│   │   │       ├── auth.js
-│   │   │       └── errorHandler.js
+│   │   │   │   └── applications.routes.js
+│   │   │   ├── services/
+│   │   │   │   └── applications.service.js   # Business logic + DB queries, calls publisher
+│   │   │   ├── utils/
+│   │   │   │   ├── ApiError.js
+│   │   │   │   └── ApiResponse.js
+│   │   │   ├── index.js                      # Express entry point, /health, /metrics
+│   │   │   ├── db.js                         # Postgres pool + migration (applications table)
+│   │   │   └── metrics.js
+│   │   ├── rabbitmq/
+│   │   │   └── publisher.js                  # RabbitMQ connection + event publishing
+│   │   ├── __tests__/
+│   │   │   └── applications.test.js          # Jest + Supertest API tests
 │   │   ├── Dockerfile
 │   │   ├── Dockerfile.dev
+│   │   ├── jest.config.js
 │   │   ├── .dockerignore
 │   │   ├── package.json
 │   │   └── .env.example
 │   │
 │   └── notification-service/                 # Custom Image #5
 │       ├── src/
-│       │   ├── index.js
-│       │   ├── db.js
-│       │   ├── metrics.js
+│       │   ├── controllers/
+│       │   │   └── notifications.controller.js
+│       │   ├── middleware/
+│       │   │   ├── auth.js
+│       │   │   └── errorHandler.js
 │       │   ├── routes/
-│       │   │   └── notifications.js          # GET /notifications
-│       │   ├── rabbitmq/
-│       │   │   └── consumer.js               # Binds queue, consumes events, writes to DB
-│       │   └── middleware/
-│       │       ├── auth.js
-│       │       └── errorHandler.js
+│       │   │   └── notifications.routes.js
+│       │   ├── services/
+│       │   │   └── notifications.service.js  # DB queries for notifications
+│       │   ├── utils/
+│       │   │   ├── ApiError.js
+│       │   │   └── ApiResponse.js
+│       │   ├── index.js                      # Express entry point, starts consumer, /health, /metrics
+│       │   ├── db.js                         # Postgres pool + migration (notifications table)
+│       │   └── metrics.js
+│       ├── rabbitmq/
+│       │   └── consumer.js                   # RabbitMQ connection + event consumption
+│       ├── __tests__/
+│       │   └── notifications.test.js         # Jest + Supertest API tests
 │       ├── Dockerfile
 │       ├── Dockerfile.dev
+│       ├── jest.config.js
 │       ├── .dockerignore
 │       ├── package.json
 │       └── .env.example
@@ -696,4 +736,8 @@ Each service exposes `/metrics` using `prom-client`:
 | Monitoring + Logging (Bonus) | Prometheus + Grafana in dev, /metrics on all services |
 | Async communication (Bonus) | RabbitMQ publisher + consumer between Application and Notification |
 | Documentation | This README + docs/ directory |
+<<<<<<< HEAD
 | Linux host | Ubuntu 22.04 VM in VirtualBox |
+=======
+| Linux host | Ubuntu 22.04 VM in VirtualBox |
+>>>>>>> origin/dev
