@@ -736,8 +736,5 @@ Each service exposes `/metrics` using `prom-client`:
 | Monitoring + Logging (Bonus) | Prometheus + Grafana in dev, /metrics on all services |
 | Async communication (Bonus) | RabbitMQ publisher + consumer between Application and Notification |
 | Documentation | This README + docs/ directory |
-<<<<<<< HEAD
 | Linux host | Ubuntu 22.04 VM in VirtualBox |
-=======
-| Linux host | Ubuntu 22.04 VM in VirtualBox |
->>>>>>> origin/dev
+
