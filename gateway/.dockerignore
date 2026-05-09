@@ -1,0 +1,12 @@
+# Git
+.git
+.gitignore
+
+# Docs
+README.md
+*.md
+
+# Editor artifacts
+.DS_Store
+*.swp
+*.swo
