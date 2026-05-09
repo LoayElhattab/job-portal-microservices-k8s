@@ -4,7 +4,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'config/app_routes.dart';
 import 'features/applications/presentation/manager/application_bloc.dart';
 import 'features/auth/presentation/manager/auth_bloc.dart';
+import 'features/job/presentation/manager/job_bloc.dart';
 import 'features/notifications/presentation/manager/notification_bloc.dart';
+import 'features/profile/presentation/manager/profile_bloc.dart';
 import 'injection_container.dart';
 
 class JobPortalApp extends StatelessWidget {
@@ -13,10 +15,13 @@ class JobPortalApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MultiBlocProvider(
-      providers: [
+      providers:
+      [
         BlocProvider<AuthBloc>(create: (_) => sl<AuthBloc>()),
         BlocProvider<NotificationBloc>(create: (_) => sl<NotificationBloc>()),
         BlocProvider<ApplicationBloc>(create: (_) => sl<ApplicationBloc>()),
+        BlocProvider<ProfileBloc>(create: (_) => sl<ProfileBloc>()),
+        BlocProvider<JobBloc>(create: (_) => sl<JobBloc>()),
       ],
       child: MaterialApp.router(
         title: 'Job Portal System',

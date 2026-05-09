@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../core/network/auth_storage.dart';
 import '../features/auth/presentation/pages/login_page.dart';
 import '../features/auth/presentation/pages/register_page.dart';
+import '../features/job/presentation/manager/job_bloc.dart';
+import '../features/job/presentation/pages/jobs_page.dart';
+import '../features/job/presentation/widgets/job_card.dart';
 import '../features/notifications/presentation/pages/notifications_page.dart';
 import '../features/notifications/presentation/widgets/notification_badge.dart';
 import '../features/applications/presentation/pages/apply_page.dart';
 import '../features/applications/presentation/pages/my_applications_page.dart';
 import '../features/applications/presentation/pages/applicants_page.dart';
+import '../features/profile/presentation/pages/profile_page.dart';
 
 
 class AppRouter {
@@ -59,8 +64,8 @@ class AppRouter {
           final int employerId = args['employerId'] ?? 0;
 
           return ApplyPage(
-            jobId: jobId,
-            employerId: employerId,
+            jobId: int.tryParse(jobId.toString()) ?? 0,
+            employerId: int.tryParse(employerId.toString()) ?? 0,
           );
         },
       ),
@@ -68,6 +73,11 @@ class AppRouter {
         path: '/my-applications',
         name: 'my_applications',
         builder: (context, state) => const MyApplicationsPage(),
+      ),
+
+      GoRoute(
+        path: '/profile',
+        builder: (context, state) => const ProfilePage(),
       ),
       GoRoute(
         path: '/applicants',
@@ -77,33 +87,59 @@ class AppRouter {
       GoRoute(
         path: '/jobs',
         name: 'jobs',
-        builder: (context, state) => Scaffold(
-          appBar: AppBar(
-            title: const Text('Jobs Dashboard'),
-            actions: [
-              NotificationBadge(
-                onTap: () {
-                  context.push('/notifications');
-                },
-              ),
-              IconButton(
-                icon: const Icon(Icons.logout),
-                onPressed: () async {
-                  await _authStorage.deleteToken();
-                  if (context.mounted) context.go('/login');
-                },
-              ),
-            ],
-          ),
-          body: const Center(
-            child: Text(
-              '🚀 Router & Auth Restored!\nJobs List Coming Soon.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 18),
+        builder: (context, state) {
+          context.read<JobBloc>().add(GetJobsEvent());
+          return Scaffold(
+            appBar: AppBar(
+              title: const Text('Jobs Dashboard'),
+              actions: [
+                NotificationBadge(
+                  onTap: () => context.push('/notifications'),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.person),
+                  onPressed: () => context.push('/profile'),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.logout),
+                  onPressed: () async {
+                    await _authStorage.deleteToken();
+                    if (context.mounted) context.go('/login');
+                  },
+                ),
+              ],
             ),
-          ),
-        ),
+            body: BlocBuilder<JobBloc, JobState>(
+              builder: (context, state) {
+                if (state is JobLoading) {
+                  return const Center(child: CircularProgressIndicator());
+                } else if (state is JobLoaded) {
+                  return ListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: state.jobs.length,
+                    itemBuilder: (context, index) {
+                      final job = state.jobs[index];
+                      return JobCard(
+                        job: job,
+                        onTap: () {
+                          context.push('/apply', extra: {
+                            'jobId': job.id,
+                            'employerId': 123,
+                          });
+                        },
+                      );
+                    },
+                  );
+                } else if (state is JobError) {
+                  return Center(child: Text(state.message));
+                }
+                return const Center(child: Text('Please wait...'));
+              },
+            ),
+          );
+        },
       ),
     ],
   );
+
 }
