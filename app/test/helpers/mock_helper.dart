@@ -23,41 +23,39 @@ import 'package:jobportal_app/features/profile/domain/repositories/profile_repos
 import 'package:jobportal_app/features/profile/data/datasources/profile_remote_datasource.dart';
 import 'package:jobportal_app/features/profile/domain/usecases/get_profile_usecase.dart';
 
-@GenerateMocks(
-  classes: [
-    Dio,
-    ApiClient,
-    AuthStorage,
-    FlutterSecureStorage,
-    RequestInterceptorHandler,
-    ErrorInterceptorHandler,
-    ResponseInterceptorHandler,
+@GenerateMocks([
+  Dio,
+  ApiClient,
+  AuthStorage,
+  FlutterSecureStorage,
+  RequestInterceptorHandler,
+  ErrorInterceptorHandler,
+  ResponseInterceptorHandler,
 
-    AuthRepository,
-    AuthRemoteDataSource,
-    LoginUseCase,
-    RegisterUseCase,
-    LogoutUseCase,
-    GetCurrentUserUseCase,
+  AuthRepository,
+  AuthRemoteDataSource,
+  LoginUseCase,
+  RegisterUseCase,
+  LogoutUseCase,
+  GetCurrentUserUseCase,
 
-    JobRepository,
-    JobRemoteDataSource,
-    GetJobsUseCase,
+  JobRepository,
+  JobRemoteDataSource,
+  GetJobsUseCase,
 
-    ApplicationRepository,
-    ApplicationRemoteDataSource,
-    GetApplicationsUseCase,
-    ApplyForJobUseCase,
-    UpdateApplicationStatusUseCase,
+  ApplicationRepository,
+  ApplicationRemoteDataSource,
+  GetApplicationsUseCase,
+  ApplyForJobUseCase,
+  UpdateApplicationStatusUseCase,
 
-    NotificationRepository,
-    NotificationRemoteDataSource,
-    GetNotificationsUseCase,
-    MarkAsReadUseCase,
+  NotificationRepository,
+  NotificationRemoteDataSource,
+  GetNotificationsUseCase,
+  MarkAsReadUseCase,
 
-    ProfileRepository,
-    ProfileRemoteDataSource,
-    GetProfileUseCase,
-  ],
-)
+  ProfileRepository,
+  ProfileRemoteDataSource,
+  GetProfileUseCase,
+])
 void main() {}
