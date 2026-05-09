@@ -28,10 +28,10 @@ void main() {
   }
 
   testWidgets('should render LoginForm when state is AuthInitial', (WidgetTester tester) async {
+    when(mockAuthBloc.state).thenReturn(AuthInitial());
     whenListen(
       mockAuthBloc,
       Stream.fromIterable([AuthInitial()]),
-      initialState: AuthInitial(),
     );
 
     await tester.pumpWidget(createWidgetUnderTest());
@@ -41,10 +41,10 @@ void main() {
   });
 
   testWidgets('should render CircularProgressIndicator when state is AuthLoading', (WidgetTester tester) async {
+    when(mockAuthBloc.state).thenReturn(AuthLoading());
     whenListen(
       mockAuthBloc,
       Stream.fromIterable([AuthLoading()]),
-      initialState: AuthLoading(),
     );
 
     await tester.pumpWidget(createWidgetUnderTest());
@@ -53,10 +53,10 @@ void main() {
   });
 
   testWidgets('should show SnackBar when state is AuthError', (WidgetTester tester) async {
+    when(mockAuthBloc.state).thenReturn(AuthInitial());
     whenListen(
       mockAuthBloc,
       Stream.fromIterable([const AuthError('Test Error')]),
-      initialState: AuthInitial(),
     );
 
     await tester.pumpWidget(createWidgetUnderTest());

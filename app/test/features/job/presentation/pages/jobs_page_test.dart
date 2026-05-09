@@ -38,10 +38,10 @@ void main() {
   ];
 
   testWidgets('should render Jobs Dashboard title', (WidgetTester tester) async {
+    when(mockJobBloc.state).thenReturn(JobInitial());
     whenListen(
       mockJobBloc,
       Stream.fromIterable([JobInitial()]),
-      initialState: JobInitial(),
     );
 
     await tester.pumpWidget(createWidgetUnderTest());
@@ -49,10 +49,10 @@ void main() {
   });
 
   testWidgets('should render CircularProgressIndicator when state is JobLoading', (WidgetTester tester) async {
+    when(mockJobBloc.state).thenReturn(JobLoading());
     whenListen(
       mockJobBloc,
       Stream.fromIterable([JobLoading()]),
-      initialState: JobLoading(),
     );
 
     await tester.pumpWidget(createWidgetUnderTest());
@@ -62,10 +62,10 @@ void main() {
   });
 
   testWidgets('should render job items when state is JobLoaded', (WidgetTester tester) async {
+    when(mockJobBloc.state).thenReturn(JobInitial());
     whenListen(
       mockJobBloc,
       Stream.fromIterable([JobLoaded(jobs: tJobs)]),
-      initialState: JobInitial(),
     );
 
     await tester.pumpWidget(createWidgetUnderTest());
@@ -75,10 +75,10 @@ void main() {
   });
 
   testWidgets('should render error message and retry button when state is JobError', (WidgetTester tester) async {
+    when(mockJobBloc.state).thenReturn(JobInitial());
     whenListen(
       mockJobBloc,
       Stream.fromIterable([const JobError(message: 'Server Error')]),
-      initialState: JobInitial(),
     );
 
     await tester.pumpWidget(createWidgetUnderTest());
