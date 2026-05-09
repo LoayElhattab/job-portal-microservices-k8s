@@ -31,7 +31,7 @@ void main() {
 
   final tNotifications = [
     Notification(
-      id: 1,
+      id: '1',
       title: 'Title',
       message: 'Message',
       isRead: false,

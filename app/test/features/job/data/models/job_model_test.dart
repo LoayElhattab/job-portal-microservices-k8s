@@ -3,14 +3,14 @@ import 'package:jobportal_app/features/job/data/models/job_model.dart';
 import 'package:jobportal_app/features/job/domain/entities/job.dart';
 
 void main() {
-  const tJobModel = JobModel(
+  final tJobModel = JobModel(
     id: '1',
     title: 'Software Engineer',
     description: 'A great role',
     companyName: 'Tech Corp',
     location: 'Remote',
     salary: 100000.0,
-    requirements: ['Dart', 'Flutter'],
+    requirements: const ['Dart', 'Flutter'],
   );
 
   test('should be a subclass of Job entity', () async {

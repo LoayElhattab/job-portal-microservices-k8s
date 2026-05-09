@@ -27,11 +27,11 @@ void main() {
   group('login', () {
     test('should call remote datasource and save token on success', () async {
       // arrange
-      when(mockRemoteDataSource.login(any, any)).thenAnswer((_) async => {
+      when(mockRemoteDataSource.login(tEmail, tPassword)).thenAnswer((_) async => {
             'token': tToken,
             'user': tUserData,
           });
-      when(mockAuthStorage.saveToken(any)).thenAnswer((_) async => null);
+      when(mockAuthStorage.saveToken(tToken)).thenAnswer((_) async => null);
 
       // act
       final result = await repository.login(tEmail, tPassword);
@@ -45,7 +45,7 @@ void main() {
 
     test('should throw exception when remote datasource fails', () async {
       // arrange
-      when(mockRemoteDataSource.login(any, any)).thenThrow(Exception('Server Error'));
+      when(mockRemoteDataSource.login(tEmail, tPassword)).thenThrow(Exception('Server Error'));
 
       // act
       final call = repository.login;

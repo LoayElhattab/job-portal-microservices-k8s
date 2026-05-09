@@ -4,7 +4,7 @@ import 'package:jobportal_app/features/notifications/domain/entities/notificatio
 
 void main() {
   final tNotificationModel = NotificationModel(
-    id: 1,
+    id: '1',
     title: 'New Application',
     message: 'Someone applied for your job',
     isRead: false,
@@ -19,7 +19,7 @@ void main() {
     test('should return a valid model when the JSON is correct', () async {
       // arrange
       final Map<String, dynamic> jsonMap = {
-        'id': 1,
+        'id': '1',
         'title': 'New Application',
         'message': 'Someone applied for your job',
         'isRead': false,

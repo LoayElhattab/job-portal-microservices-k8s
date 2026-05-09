@@ -34,7 +34,7 @@ void main() {
     authBloc.close();
   });
 
-  const tUser = User(id: 1, email: 'test@example.com', role: 'seeker');
+  final tUser = User(id: 1, email: 'test@example.com', role: 'seeker');
 
   test('initial state should be AuthInitial', () {
     expect(authBloc.state, isA<AuthInitial>());
@@ -44,10 +44,11 @@ void main() {
     blocTest<AuthBloc, AuthState>(
       'emits [AuthLoading, AuthAuthenticated] when login is successful',
       build: () {
-        when(mockLoginUseCase(any, any)).thenAnswer((_) async => tUser);
+        when(mockLoginUseCase('test@example.com', 'password'))
+            .thenAnswer((_) async => tUser);
         return authBloc;
       },
-      act: (bloc) => bloc.add(const LoginRequested(email: 'test@example.com', password: 'password')),
+      act: (bloc) => bloc.add(LoginRequested('test@example.com', 'password')),
       expect: () => [
         isA<AuthLoading>(),
         isA<AuthAuthenticated>(),
@@ -57,10 +58,11 @@ void main() {
     blocTest<AuthBloc, AuthState>(
       'emits [AuthLoading, AuthError] when login fails',
       build: () {
-        when(mockLoginUseCase(any, any)).thenThrow(Exception('Login failed'));
+        when(mockLoginUseCase('test@example.com', 'password'))
+            .thenThrow(Exception('Login failed'));
         return authBloc;
       },
-      act: (bloc) => bloc.add(const LoginRequested(email: 'test@example.com', password: 'password')),
+      act: (bloc) => bloc.add(LoginRequested('test@example.com', 'password')),
       expect: () => [
         isA<AuthLoading>(),
         isA<AuthError>(),
@@ -72,10 +74,11 @@ void main() {
     blocTest<AuthBloc, AuthState>(
       'emits [AuthLoading, AuthAuthenticated] when registration is successful',
       build: () {
-        when(mockRegisterUseCase(any, any, any)).thenAnswer((_) async => tUser);
+        when(mockRegisterUseCase('test@example.com', 'password', 'seeker'))
+            .thenAnswer((_) async => tUser);
         return authBloc;
       },
-      act: (bloc) => bloc.add(const RegisterRequested(email: 'test@example.com', password: 'password', role: 'seeker')),
+      act: (bloc) => bloc.add(RegisterRequested('test@example.com', 'password', 'seeker')),
       expect: () => [
         isA<AuthLoading>(),
         isA<AuthAuthenticated>(),
@@ -85,10 +88,11 @@ void main() {
     blocTest<AuthBloc, AuthState>(
       'emits [AuthLoading, AuthError] when registration fails',
       build: () {
-        when(mockRegisterUseCase(any, any, any)).thenThrow(Exception('Registration failed'));
+        when(mockRegisterUseCase('test@example.com', 'password', 'seeker'))
+            .thenThrow(Exception('Registration failed'));
         return authBloc;
       },
-      act: (bloc) => bloc.add(const RegisterRequested(email: 'test@example.com', password: 'password', role: 'seeker')),
+      act: (bloc) => bloc.add(RegisterRequested('test@example.com', 'password', 'seeker')),
       expect: () => [
         isA<AuthLoading>(),
         isA<AuthError>(),

@@ -16,6 +16,7 @@ void main() {
 
   setUp(() {
     mockAuthBloc = MockAuthBloc();
+    when(mockAuthBloc.state).thenReturn(AuthInitial());
   });
 
   Widget createWidgetUnderTest() {

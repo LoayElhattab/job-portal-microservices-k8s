@@ -4,7 +4,7 @@ import 'package:jobportal_app/features/auth/data/models/user_model.dart';
 import 'package:jobportal_app/features/auth/domain/entities/user.dart';
 
 void main() {
-  const tUserModel = UserModel(
+  final tUserModel = UserModel(
     id: '1',
     email: 'test@example.com',
     role: 'seeker',

@@ -24,7 +24,7 @@ void main() {
     profileBloc.close();
   });
 
-  const tProfile = Profile(
+  final tProfile = Profile(
     id: '1',
     name: 'John Doe',
     email: 'john@example.com',
@@ -39,7 +39,7 @@ void main() {
     blocTest<ProfileBloc, ProfileState>(
       'emits [ProfileLoading, ProfileLoaded] when successful',
       build: () {
-        when(mockGetProfileUseCase()).thenAnswer((_) async => const Right(tProfile));
+        when(mockGetProfileUseCase()).thenAnswer((_) async => Right(tProfile));
         return profileBloc;
       },
       act: (bloc) => bloc.add(GetProfileEvent()),

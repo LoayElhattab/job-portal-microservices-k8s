@@ -22,7 +22,7 @@ void main() {
     jobBloc.close();
   });
 
-  const tJobs = [
+  final tJobs = [
     Job(
       id: '1',
       title: 'Job 1',
@@ -30,7 +30,7 @@ void main() {
       companyName: 'Co 1',
       location: 'Loc 1',
       salary: 100.0,
-      requirements: [],
+      requirements: const [],
     )
   ];
 
@@ -42,7 +42,7 @@ void main() {
     blocTest<JobBloc, JobState>(
       'emits [JobLoading, JobLoaded] when get jobs is successful',
       build: () {
-        when(mockGetJobsUseCase()).thenAnswer((_) async => const Right(tJobs));
+        when(mockGetJobsUseCase()).thenAnswer((_) async => Right(tJobs));
         return jobBloc;
       },
       act: (bloc) => bloc.add(GetJobsEvent()),

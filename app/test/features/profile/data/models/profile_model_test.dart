@@ -3,13 +3,13 @@ import 'package:jobportal_app/features/profile/data/models/profile_model.dart';
 import 'package:jobportal_app/features/profile/domain/entities/profile.dart';
 
 void main() {
-  const tProfileModel = ProfileModel(
+  final tProfileModel = ProfileModel(
     id: '1',
     name: 'John Doe',
     email: 'john@example.com',
     role: 'seeker',
     bio: 'Software Developer',
-    skills: ['Flutter', 'Dart'],
+    skills: const ['Flutter', 'Dart'],
   );
 
   test('should be a subclass of Profile entity', () async {

@@ -37,7 +37,7 @@ void main() {
       };
       
       when(mockDio.post(
-        any,
+        '/users/login',
         data: anyNamed('data'),
       )).thenAnswer((_) async => Response(
             data: tResponseData,
@@ -59,7 +59,7 @@ void main() {
     test('should throw DioException when status is not 200', () async {
       // arrange
       when(mockDio.post(
-        any,
+        '/users/login',
         data: anyNamed('data'),
       )).thenThrow(DioException(
         requestOptions: RequestOptions(path: ''),
@@ -89,7 +89,7 @@ void main() {
       };
       
       when(mockDio.post(
-        any,
+        '/users/register',
         data: anyNamed('data'),
       )).thenAnswer((_) async => Response(
             data: tResponseData,

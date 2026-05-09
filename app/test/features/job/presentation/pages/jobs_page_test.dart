@@ -14,6 +14,7 @@ void main() {
 
   setUp(() {
     mockJobBloc = MockJobBloc();
+    when(mockJobBloc.state).thenReturn(JobInitial());
   });
 
   Widget createWidgetUnderTest() {
@@ -25,7 +26,7 @@ void main() {
     );
   }
 
-  const tJobs = [
+  final tJobs = [
     Job(
       id: '1',
       title: 'Test Job',
@@ -33,7 +34,7 @@ void main() {
       companyName: 'Co',
       location: 'Loc',
       salary: 100.0,
-      requirements: [],
+      requirements: const [],
     )
   ];
 
