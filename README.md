@@ -737,4 +737,3 @@ Each service exposes `/metrics` using `prom-client`:
 | Async communication (Bonus) | RabbitMQ publisher + consumer between Application and Notification |
 | Documentation | This README + docs/ directory |
 | Linux host | Ubuntu 22.04 VM in VirtualBox |
-
