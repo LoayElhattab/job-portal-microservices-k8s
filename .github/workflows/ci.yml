@@ -1,0 +1,108 @@
+name: CI Pipeline
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - main
+
+jobs:
+  backend-tests:
+    name: Backend Tests (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        service:
+          - user-service
+          - job-service
+          - application-service
+          - notification-service
+      fail-fast: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: services/${{ matrix.service }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: services/${{ matrix.service }}
+        run: npm ci
+
+      - name: Run tests
+        working-directory: services/${{ matrix.service }}
+        run: npm test
+
+      - name: Output Status
+        run: echo "Backend tests for ${{ matrix.service }} completed successfully."
+
+  flutter-tests:
+    name: Flutter Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Install dependencies
+        working-directory: app/
+        run: flutter pub get
+
+      - name: Run tests
+        working-directory: app/
+        run: flutter test
+
+      - name: Output Status
+        run: echo "Flutter tests completed successfully."
+
+  k8s-validate:
+    name: Kubernetes Validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Validate Kubernetes YAMLs
+        run: |
+          # Create a dummy kubeconfig for offline validation
+          kubectl config set-cluster dummy-cluster --server=https://127.0.0.1:6443
+          kubectl config set-credentials dummy-user --token=dummy
+          kubectl config set-context dummy-context --cluster=dummy-cluster --user=dummy-user
+          kubectl config use-context dummy-context
+          
+          # Validate all YAML files
+          for f in $(find k8s -name '*.yml'); do
+            echo "Validating $f"
+            kubectl apply --dry-run=client -f $f
+          done
+
+      - name: Output Status
+        run: echo "Kubernetes validation completed successfully."
+
+  docker-lint:
+    name: Dockerfile Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Lint Dockerfiles
+        run: find . -name 'Dockerfile' -o -name 'Dockerfile.dev' | xargs hadolint
+
+      - name: Output Status
+        run: echo "Docker lint completed successfully."
