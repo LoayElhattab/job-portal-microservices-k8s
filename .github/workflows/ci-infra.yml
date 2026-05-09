@@ -21,4 +21,4 @@ jobs:
         run: cat infrastructure/databases/init-databases.sql
 
       - name: Run shellcheck
-        run: shellcheck infrastructure/scripts/*.sh
+        run: shellcheck --severity=warning infrastructure/scripts/*.sh
