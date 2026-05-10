@@ -164,7 +164,7 @@ services:
       - POSTGRES_DB=${POSTGRES_DB:-postgres}
     volumes:
       - postgres-dev-data:/var/lib/postgresql/data
-      - ./infra/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro
+      - ./infrastructure/databases/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}" ]
       interval: 5s
@@ -201,7 +201,7 @@ services:
       - "3120:9090"
     volumes:
       - prometheus-dev-data:/prometheus
-      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infrastructure/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     depends_on:
       user-service:
         condition: service_healthy
@@ -232,7 +232,7 @@ services:
       - GF_INSTALL_PLUGINS=
     volumes:
       - grafana-dev-data:/var/lib/grafana
-      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infrastructure/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
     depends_on:
       prometheus:
         condition: service_healthy
@@ -242,6 +242,30 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    networks:
+      - jobportal-dev-network
+    restart: unless-stopped
+
+  loki:
+    image: grafana/loki:latest
+    container_name: loki-dev
+    ports:
+      - "3130:3100"
+    volumes:
+      - ./infrastructure/monitoring/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+    networks:
+      - jobportal-dev-network
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:latest
+    container_name: promtail-dev
+    user: "0:0"
+    volumes:
+      - ./infrastructure/monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: -config.file=/etc/promtail/config.yml
     networks:
       - jobportal-dev-network
     restart: unless-stopped
