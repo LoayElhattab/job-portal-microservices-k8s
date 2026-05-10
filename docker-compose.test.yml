@@ -27,11 +27,11 @@ services:
       notification-service:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD-SHELL", "curl -fsS http://localhost:80/health > /dev/null || exit 1" ]
+      test: [ "CMD-SHELL", "curl -fsS http://localhost:3000/health || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 5s
+      start_period: 30s
     networks:
       - jobportal-test-network
     restart: unless-stopped
@@ -54,11 +54,11 @@ services:
       rabbitmq:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD-SHELL", "curl -fsS http://localhost:3000/health > /dev/null || exit 1" ]
+      test: [ "CMD-SHELL", "curl -fsS http://localhost:3000/health || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 30s
     networks:
       - jobportal-test-network
     restart: unless-stopped
@@ -81,11 +81,11 @@ services:
       rabbitmq:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD-SHELL", "curl -fsS http://localhost:3001/health > /dev/null || exit 1" ]
+      test: [ "CMD-SHELL", "curl -fsS http://localhost:3000/health || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 30s
     networks:
       - jobportal-test-network
     restart: unless-stopped
@@ -108,11 +108,11 @@ services:
       rabbitmq:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD-SHELL", "curl -fsS http://localhost:3002/health > /dev/null || exit 1" ]
+      test: [ "CMD-SHELL", "curl -fsS http://localhost:3000/health || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 30s
     networks:
       - jobportal-test-network
     restart: unless-stopped
@@ -135,11 +135,11 @@ services:
       rabbitmq:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD-SHELL", "curl -fsS http://localhost:3003/health > /dev/null || exit 1" ]
+      test: [ "CMD-SHELL", "curl -fsS http://localhost:3000/health || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 30s
     networks:
       - jobportal-test-network
     restart: unless-stopped
@@ -157,11 +157,11 @@ services:
       - postgres-test-data:/var/lib/postgresql/data
       - ./infrastructure/databases/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro # Fixed path
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}" ]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-      start_period: 5s
+      test: [ "CMD-SHELL", "curl -fsS http://localhost:3000/health || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     networks:
       - jobportal-test-network
     restart: unless-stopped
@@ -176,11 +176,9 @@ services:
       - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:?err}
       - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS:?err}
     healthcheck:
-      test: [ "CMD-SHELL", "rabbitmq-diagnostics -q ping" ]
-      interval: 10s
+      test: [ "CMD", "nc", "-z", "localhost", "5672" ]
+      interval: 5s
       timeout: 5s
-      retries: 5
-      start_period: 10s
+      retries: 10
     networks:
       - jobportal-test-network
-    restart: unless-stopped

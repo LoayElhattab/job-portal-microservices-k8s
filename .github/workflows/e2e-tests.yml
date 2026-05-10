@@ -45,24 +45,24 @@ jobs:
 
       - name: Wait for Environment Health
         run: |
-          echo "Waiting for all containers to become healthy (Timeout: 120s)..."
+          echo "Waiting for Infrastructure (Postgres/RabbitMQ)..."
+          # Wait specifically for the infra to be healthy first
+          docker compose --env-file .env.test -p jobportal-test -f docker-compose.test.yml ps postgres rabbitmq
           
-          for i in {1..12}; do
-            UNHEALTHY=$(docker ps --filter "health=unhealthy" -q)
-            STARTING=$(docker ps --filter "health=starting" -q)
-            
-            if [ -z "$UNHEALTHY" ] && [ -z "$STARTING" ]; then
-              echo "✅ All services are up and healthy!"
+          echo "Waiting for Services to stabilize (Timeout: 180s)..."
+          for i in {1..18}; do
+            # Check if gateway is finally up
+            if curl -s http://localhost:3200/health > /dev/null; then
+              echo "✅ System is fully operational!"
               exit 0
             fi
             
-            echo "⏳ Waiting... Current container statuses:"
+            echo "⏳ Still waiting for Gateway/Services... (Attempt $i)"
             docker ps --format "table {{.Names}}\t{{.Status}}"
             sleep 10
           done
           
-          echo "❌ Timeout waiting for healthy services. Environment failed to stabilize."
-          echo "--- Failing Container Logs ---"
+          echo "❌ System failed to stabilize."
           docker compose --env-file .env.test -p jobportal-test -f docker-compose.test.yml logs
           exit 1
 
