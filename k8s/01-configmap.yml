@@ -27,7 +27,6 @@ data:
 
   # RabbitMQ
   RABBITMQ_USER: "jobportal"
-  RABBITMQ_URL: "amqp://jobportal:jobportal@rabbitmq:5672"
 
   # Service URLs (internal)
   USER_SERVICE_URL: "http://user-service:3000"

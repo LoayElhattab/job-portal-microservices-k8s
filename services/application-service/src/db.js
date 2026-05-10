@@ -26,11 +26,13 @@ const connectWithRetry = async (retries = 10, delay = 3000) => {
 
 const runMigrations = async () => {
   const createTableQuery = `
+    CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
     CREATE TABLE IF NOT EXISTS applications (
-      id SERIAL PRIMARY KEY,
-      job_id INTEGER NOT NULL,
-      seeker_id INTEGER NOT NULL,
-      employer_id INTEGER NOT NULL,
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      job_id UUID NOT NULL,
+      seeker_id UUID NOT NULL,
+      employer_id UUID NOT NULL,
       status VARCHAR(50) DEFAULT 'pending',
       cover_letter TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

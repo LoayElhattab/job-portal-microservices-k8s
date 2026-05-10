@@ -34,7 +34,7 @@ spec:
                 name: jobportal-config
           env:
             - name: GATEWAY_URL
-              value: "http://gateway:80"
+              value: "/api/v1"
           readinessProbe:
             httpGet:
               path: /
