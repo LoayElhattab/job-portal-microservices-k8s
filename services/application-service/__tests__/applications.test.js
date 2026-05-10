@@ -25,9 +25,15 @@ const generateToken = (userId, email, role) => {
 };
 
 describe('Application Service API Tests', () => {
-  const seekerToken = generateToken(1, 'seeker@example.com', 'seeker');
-  const employerToken = generateToken(2, 'employer@example.com', 'employer');
-  const otherEmployerToken = generateToken(3, 'other@example.com', 'employer');
+  const seekerId = '123e4567-e89b-12d3-a456-426614174000';
+  const employerId = '223e4567-e89b-12d3-a456-426614174000';
+  const otherEmployerId = '323e4567-e89b-12d3-a456-426614174000';
+  const jobId = '423e4567-e89b-12d3-a456-426614174000';
+  const applicationId = '523e4567-e89b-12d3-a456-426614174000';
+
+  const seekerToken = generateToken(seekerId, 'seeker@example.com', 'seeker');
+  const employerToken = generateToken(employerId, 'employer@example.com', 'employer');
+  const otherEmployerToken = generateToken(otherEmployerId, 'other@example.com', 'employer');
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -42,14 +48,14 @@ describe('Application Service API Tests', () => {
   });
 
   describe('POST /api/v1/applications', () => {
-    const validPayload = { jobId: 101, employerId: 2, coverLetter: 'I am interested' };
+    const validPayload = { jobId, employerId, coverLetter: 'I am interested' };
 
     it('should successfully apply (201) and publish event', async () => {
       const mockApp = { 
-        id: 1, 
+        id: applicationId, 
         job_id: validPayload.jobId, 
         employer_id: validPayload.employerId, 
-        seeker_id: 1, 
+        seeker_id: seekerId, 
         status: 'pending' 
       };
       pool.query.mockResolvedValueOnce({ rows: [mockApp] });
@@ -61,7 +67,7 @@ describe('Application Service API Tests', () => {
 
       expect(res.statusCode).toEqual(201);
       expect(res.body.success).toBe(true);
-      expect(res.body.data).toMatchObject({ id: 1, job_id: 101 });
+      expect(res.body.data).toMatchObject({ id: applicationId, job_id: jobId });
       expect(publishEvent).toHaveBeenCalledWith('application.submitted', expect.any(Object));
     });
 
@@ -109,7 +115,7 @@ describe('Application Service API Tests', () => {
 
   describe('GET /api/v1/applications', () => {
     it('should allow seeker to see their own applications', async () => {
-      const mockApps = [{ id: 1, seeker_id: 1, job_id: 101 }];
+      const mockApps = [{ id: applicationId, seeker_id: seekerId, job_id: jobId }];
       pool.query.mockResolvedValueOnce({ rows: mockApps });
 
       const res = await request(app)
@@ -118,11 +124,11 @@ describe('Application Service API Tests', () => {
 
       expect(res.statusCode).toEqual(200);
       expect(Array.isArray(res.body.data)).toBe(true);
-      expect(res.body.data[0].seeker_id).toBe(1);
+      expect(res.body.data[0].seeker_id).toBe(seekerId);
     });
 
     it('should allow employer to see applications for their jobs', async () => {
-      const mockApps = [{ id: 1, employer_id: 2, job_id: 101 }];
+      const mockApps = [{ id: applicationId, employer_id: employerId, job_id: jobId }];
       pool.query.mockResolvedValueOnce({ rows: mockApps });
 
       const res = await request(app)
@@ -130,7 +136,7 @@ describe('Application Service API Tests', () => {
         .set('Authorization', `Bearer ${employerToken}`);
 
       expect(res.statusCode).toEqual(200);
-      expect(res.body.data[0].employer_id).toBe(2);
+      expect(res.body.data[0].employer_id).toBe(employerId);
     });
 
     it('should return 401 if unauthorized', async () => {
@@ -154,11 +160,11 @@ describe('Application Service API Tests', () => {
     const updatePayload = { status: 'accepted' };
 
     it('should successfully update status (200) and publish event if owner', async () => {
-      const mockUpdated = { id: 1, seeker_id: 1, status: 'accepted' };
+      const mockUpdated = { id: applicationId, seeker_id: seekerId, status: 'accepted' };
       pool.query.mockResolvedValueOnce({ rowCount: 1, rows: [mockUpdated] });
 
       const res = await request(app)
-        .patch('/api/v1/applications/1/status')
+        .patch(`/api/v1/applications/${applicationId}/status`)
         .set('Authorization', `Bearer ${employerToken}`)
         .send(updatePayload);
 
@@ -169,7 +175,7 @@ describe('Application Service API Tests', () => {
 
     it('should return 403 if seeker attempts update', async () => {
       const res = await request(app)
-        .patch('/api/v1/applications/1/status')
+        .patch(`/api/v1/applications/${applicationId}/status`)
         .set('Authorization', `Bearer ${seekerToken}`)
         .send(updatePayload);
 
@@ -180,7 +186,7 @@ describe('Application Service API Tests', () => {
       pool.query.mockResolvedValueOnce({ rowCount: 0, rows: [] });
 
       const res = await request(app)
-        .patch('/api/v1/applications/1/status')
+        .patch(`/api/v1/applications/${applicationId}/status`)
         .set('Authorization', `Bearer ${otherEmployerToken}`)
         .send(updatePayload);
 
@@ -189,7 +195,7 @@ describe('Application Service API Tests', () => {
     });
 
     it('should return 401 if unauthorized', async () => {
-      const res = await request(app).patch('/api/v1/applications/1/status').send(updatePayload);
+      const res = await request(app).patch(`/api/v1/applications/${applicationId}/status`).send(updatePayload);
       expect(res.statusCode).toEqual(401);
     });
   });

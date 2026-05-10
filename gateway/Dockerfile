@@ -1,8 +1,9 @@
 FROM nginx:1.25-alpine
 
-# Build argument to select which environment config to bake in
-# Usage: docker build --build-arg ENVIRONMENT=dev|test|prod .
-ARG ENVIRONMENT=prod
+# Build argument to select which environment config to bake in.
+# Compose passes dev/test/prod explicitly; local Kubernetes builds use k8s by default.
+# Usage: docker build --build-arg ENVIRONMENT=dev|test|prod|k8s .
+ARG ENVIRONMENT=k8s
 
 # Install curl for healthcheck
 RUN apk add --no-cache curl
@@ -14,6 +15,7 @@ RUN rm /etc/nginx/conf.d/default.conf
 COPY nginx.dev.conf  /tmp/nginx.dev.conf
 COPY nginx.test.conf /tmp/nginx.test.conf
 COPY nginx.prod.conf /tmp/nginx.prod.conf
+COPY nginx.k8s.conf  /tmp/nginx.k8s.conf
 
 # Bake only the selected config as active so nginx does not resolve every env.
 RUN cp /tmp/nginx.${ENVIRONMENT}.conf /etc/nginx/conf.d/default.conf \
