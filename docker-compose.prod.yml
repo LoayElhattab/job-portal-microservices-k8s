@@ -6,15 +6,13 @@ networks:
 
 volumes:
   postgres-prod-data:
-  grafana-prod-data:
-  prometheus-prod-data:
 
 services:
   gateway:
     image: nginx:1.25-alpine
     container_name: gateway-prod
     ports:
-      - "3100:80"
+      - "3300:80"
     volumes:
       - ./gateway/nginx.prod.conf:/etc/nginx/nginx.conf:ro
     depends_on:
@@ -27,7 +25,7 @@ services:
       notification-service:
         condition: service_healthy
     healthcheck:
-      prod: [ "CMD-SHELL", "curl -fsS http://localhost:80/health > /prod/null || exit 1" ]
+      test: [ "CMD-SHELL", "curl -fsS http://localhost:80/health > /dev/null || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -39,24 +37,22 @@ services:
   user-service:
     build:
       context: ./services/user-service
-      dockerfile: Dockerfile.prod
+      dockerfile: Dockerfile # Changed from Dockerfile.prod
     container_name: user-service-prod
     ports:
-      - "3101:3000"
+      - "3301:3000"
     env_file:
       - .env.prod
     environment:
       - PORT=3000
       - DB_NAME=${USER_SERVICE_DB:?err}
-    volumes:
-      - ./services/user-service/src:/app/src:ro
     depends_on:
       postgres:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
     healthcheck:
-      prod: [ "CMD-SHELL", "curl -fsS http://localhost:3000/health > /prod/null || exit 1" ]
+      test: [ "CMD-SHELL", "curl -fsS http://localhost:3000/health > /dev/null || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -68,24 +64,22 @@ services:
   job-service:
     build:
       context: ./services/job-service
-      dockerfile: Dockerfile.prod
+      dockerfile: Dockerfile # Changed from Dockerfile.prod
     container_name: job-service-prod
     ports:
-      - "3102:3001"
+      - "3302:3001"
     env_file:
       - .env.prod
     environment:
       - PORT=3001
       - DB_NAME=${JOB_SERVICE_DB:?err}
-    volumes:
-      - ./services/job-service/src:/app/src:ro
     depends_on:
       postgres:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
     healthcheck:
-      prod: [ "CMD-SHELL", "curl -fsS http://localhost:3001/health > /prod/null || exit 1" ]
+      test: [ "CMD-SHELL", "curl -fsS http://localhost:3001/health > /dev/null || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -97,24 +91,22 @@ services:
   application-service:
     build:
       context: ./services/application-service
-      dockerfile: Dockerfile.prod
+      dockerfile: Dockerfile # Changed from Dockerfile.prod
     container_name: application-service-prod
     ports:
-      - "3103:3002"
+      - "3303:3002"
     env_file:
       - .env.prod
     environment:
       - PORT=3002
       - DB_NAME=${APPLICATION_SERVICE_DB:?err}
-    volumes:
-      - ./services/application-service/src:/app/src:ro
     depends_on:
       postgres:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
     healthcheck:
-      prod: [ "CMD-SHELL", "curl -fsS http://localhost:3002/health > /prod/null || exit 1" ]
+      test: [ "CMD-SHELL", "curl -fsS http://localhost:3002/health > /dev/null || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -126,24 +118,22 @@ services:
   notification-service:
     build:
       context: ./services/notification-service
-      dockerfile: Dockerfile.prod
+      dockerfile: Dockerfile # Changed from Dockerfile.prod
     container_name: notification-service-prod
     ports:
-      - "3104:3003"
+      - "3304:3003"
     env_file:
       - .env.prod
     environment:
       - PORT=3003
       - DB_NAME=${NOTIFICATION_SERVICE_DB:?err}
-    volumes:
-      - ./services/notification-service/src:/app/src:ro
     depends_on:
       postgres:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
     healthcheck:
-      prod: [ "CMD-SHELL", "curl -fsS http://localhost:3003/health > /prod/null || exit 1" ]
+      test: [ "CMD-SHELL", "curl -fsS http://localhost:3003/health > /dev/null || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -156,17 +146,16 @@ services:
     image: postgres:16-alpine
     container_name: postgres-prod
     ports:
-      - "3110:5432"
+      - "3310:5432"
     env_file:
       - .env.prod
     environment:
-      # Fallback default DB for health check if POSTGRES_DB not in .env.prod
       - POSTGRES_DB=${POSTGRES_DB:-postgres}
     volumes:
       - postgres-prod-data:/var/lib/postgresql/data
-      - ./infra/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro
+      - ./infrastructure/databases/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro # Fixed path
     healthcheck:
-      prod: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}" ]
+      test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}" ]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -179,65 +168,13 @@ services:
     image: rabbitmq:3.13-management-alpine
     container_name: rabbitmq-prod
     ports:
-      - "3111:5672"
-      - "3112:15672"
+      - "3311:5672"
+      - "3312:15672"
     environment:
       - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:?err}
       - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS:?err}
     healthcheck:
-      prod: [ "CMD-SHELL", "rabbitmq-diagnostics -q ping" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    networks:
-      - jobportal-prod-network
-    restart: unless-stopped
-
-  prometheus:
-    image: prom/prometheus:v2.50.0
-    container_name: prometheus-prod
-    ports:
-      - "3120:9090"
-    volumes:
-      - prometheus-prod-data:/prometheus
-      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-    depends_on:
-      user-service:
-        condition: service_healthy
-      job-service:
-        condition: service_healthy
-      application-service:
-        condition: service_healthy
-      notification-service:
-        condition: service_healthy
-    healthcheck:
-      prod: [ "CMD-SHELL", "wget -qO- http://localhost:9090/-/healthy > /prod/null || exit 1" ]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 5s
-    networks:
-      - jobportal-prod-network
-    restart: unless-stopped
-
-  grafana:
-    image: grafana/grafana:10.4.0
-    container_name: grafana-prod
-    ports:
-      - "3121:3000"
-    environment:
-      - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER:-admin}
-      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD:-admin}
-      - GF_INSTALL_PLUGINS=
-    volumes:
-      - grafana-prod-data:/var/lib/grafana
-      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
-    depends_on:
-      prometheus:
-        condition: service_healthy
-    healthcheck:
-      prod: [ "CMD-SHELL", "curl -fsS http://localhost:3000/api/health > /prod/null || exit 1" ]
+      test: [ "CMD-SHELL", "rabbitmq-diagnostics -q ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
