@@ -14,7 +14,7 @@ import 'features/auth/domain/usecases/logout_usecase.dart';
 import 'features/auth/domain/usecases/register_usecase.dart';
 import 'features/auth/presentation/manager/auth_bloc.dart';
 // Notification Feature
-import 'features/job/data/datasourses/job_remote_datasource.dart';
+import 'features/job/data/datasources/job_remote_datasource.dart';
 import 'features/job/data/repositories/job_repository_impl.dart';
 import 'features/job/domain/repositories/job_repository.dart';
 import 'features/job/domain/usecases/get_jobs_usecase.dart';
@@ -33,7 +33,7 @@ import 'features/applications/domain/usecases/apply_for_job_usecase.dart';
 import 'features/applications/domain/usecases/get_applications_usecase.dart';
 import 'features/applications/domain/usecases/update_application_status_usecase.dart';
 import 'features/applications/presentation/manager/application_bloc.dart';
-import 'features/profile/data/datasource/profile_remote_datasource.dart';
+import 'features/profile/data/datasources/profile_remote_datasource.dart';
 import 'features/profile/data/repositories/profile_repository_impl.dart';
 import 'features/profile/domain/repositories/profile_repository.dart';
 import 'features/profile/domain/usecases/get_profile_usecase.dart';
