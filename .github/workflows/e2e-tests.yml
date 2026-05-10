@@ -1,96 +1,86 @@
-name: System Integration E2E Tests
+name: Docker Integration Tests
 
 on:
   pull_request:
     branches:
       - dev
       - main
+  push:
+    branches:
+      - dev
+      - main
+  workflow_dispatch:
 
 jobs:
-  integration-test:
-    name: End-to-End Environment Test
+  docker-integration:
+    name: Compose stack smoke test
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    
+    timeout-minutes: 30
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Create .env.test file
+      - name: Create local environment files
         run: |
-          cat <<EOF > .env.test
+          cp .env.dev.example .env.dev
+          cp .env.prod.example .env.prod
+          cat > .env.test <<'EOF'
           NODE_ENV=test
           JWT_SECRET=super_secret_test_jwt_key_123456789
           DB_HOST=postgres-test
           DB_PORT=5432
           DB_USER=jobportal
-          DB_PASSWORD=testpassword
+          DB_PASSWORD=jobportal_test_password_change_me
           USER_SERVICE_DB=user_db
           JOB_SERVICE_DB=job_db
           APPLICATION_SERVICE_DB=application_db
           NOTIFICATION_SERVICE_DB=notification_db
           POSTGRES_USER=jobportal
-          POSTGRES_PASSWORD=testpassword
+          POSTGRES_PASSWORD=jobportal_test_password_change_me
           POSTGRES_DB=postgres
           RABBITMQ_USER=jobportal
-          RABBITMQ_PASS=testpassword
-          RABBITMQ_URL=amqp://jobportal:testpassword@rabbitmq-test:5672
-          GATEWAY_URL=http://localhost:3200/api/v1
+          RABBITMQ_PASS=jobportal_test_password_change_me
+          RABBITMQ_URL=amqp://jobportal:jobportal_test_password_change_me@rabbitmq-test:5672
+          GF_SECURITY_ADMIN_USER=admin
+          GF_SECURITY_ADMIN_PASSWORD=admin_test_password_change_me
           EOF
 
-      - name: Build and Start Test Environment
+      - name: Validate compose files
         run: |
-          # Added --env-file .env.test to pass the variables to the compose file
-          docker compose --env-file .env.test -p jobportal-test -f docker-compose.test.yml up -d --build
+          docker compose --env-file .env.dev -f docker-compose.dev.yml config --quiet
+          docker compose --env-file .env.test -f docker-compose.test.yml config --quiet
+          docker compose --env-file .env.prod -f docker-compose.prod.yml config --quiet
 
-      - name: Wait for Environment Health
-        run: |
-          echo "Waiting for Infrastructure (Postgres/RabbitMQ)..."
-          # Wait specifically for the infra to be healthy first
-          docker compose --env-file .env.test -p jobportal-test -f docker-compose.test.yml ps postgres rabbitmq
-          
-          echo "Waiting for Services to stabilize (Timeout: 180s)..."
-          for i in {1..18}; do
-            # Check if gateway is finally up
-            if curl -s http://localhost:3200/health > /dev/null; then
-              echo "✅ System is fully operational!"
-              exit 0
-            fi
-            
-            echo "⏳ Still waiting for Gateway/Services... (Attempt $i)"
-            docker ps --format "table {{.Names}}\t{{.Status}}"
-            sleep 10
-          done
-          
-          echo "❌ System failed to stabilize."
-          docker compose --env-file .env.test -p jobportal-test -f docker-compose.test.yml logs
-          exit 1
+      - name: Build and start test stack
+        run: docker compose --env-file .env.test -f docker-compose.test.yml up -d --build --wait --wait-timeout 360
 
-      - name: Smoke Test - API Gateway Routing
+      - name: Show stack status
+        run: docker compose --env-file .env.test -f docker-compose.test.yml ps
+
+      - name: Smoke test running system
         run: |
-          echo "Testing communication through API Gateway on port 3200..."
-          
-          # 1. Check Gateway Health
-          curl -fsS --retry 3 --retry-delay 2 http://localhost:3200/health
-          echo -e "\n✅ Gateway is responding"
-          
-          # 2. Check Job Service via Gateway
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3200/api/v1/jobs)
-          if[ "$STATUS" -ne 200 ]; then
-            echo "❌ Job Service routing failed with status $STATUS"
-            exit 1
-          fi
-          echo "✅ Job Service is successfully routing through Gateway"
-          
-      - name: Fetch Logs on Failure
+          curl -fsS http://localhost:3200/health
+          curl -fsS http://localhost:3205/health
+          curl -fsS http://localhost:3201/health
+          curl -fsS http://localhost:3202/health
+          curl -fsS http://localhost:3203/health
+          curl -fsS http://localhost:3204/health
+
+          curl -fsS http://localhost:3200/api/v1/jobs/
+
+          EMAIL="ci-$(date +%s)@example.com"
+          curl -fsS \
+            -H "Content-Type: application/json" \
+            -d "{\"name\":\"CI User\",\"email\":\"${EMAIL}\",\"password\":\"Password123!\",\"role\":\"seeker\"}" \
+            http://localhost:3200/api/v1/users/register
+
+          curl -fsS http://localhost:3205/env.json | grep -q "http://localhost:3200/api/v1"
+
+      - name: Print logs on failure
         if: failure()
-        run: |
-          echo "Tests failed. Fetching full system logs..."
-          # Added --env-file .env.test here too
-          docker compose --env-file .env.test -p jobportal-test -f docker-compose.test.yml logs
+        run: docker compose --env-file .env.test -f docker-compose.test.yml logs --no-color
 
-      - name: Tear Down Environment
+      - name: Tear down test stack
         if: always()
-        run: |
-          # Added --env-file .env.test here too
-          docker compose --env-file .env.test -p jobportal-test -f docker-compose.test.yml down -v
+        run: docker compose --env-file .env.test -f docker-compose.test.yml down -v --remove-orphans

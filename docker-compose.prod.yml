@@ -7,15 +7,51 @@ networks:
 volumes:
   postgres-prod-data:
 
+x-service-env: &service-env
+  NODE_ENV: production
+  JWT_SECRET: ${JWT_SECRET:-change-me-to-a-64-char-hex-string}
+  DB_HOST: postgres-prod
+  DB_PORT: 5432
+  DB_USER: ${DB_USER:-jobportal}
+  DB_PASSWORD: ${DB_PASSWORD:-jobportal_prod_password_change_me}
+  USER_SERVICE_DB: ${USER_SERVICE_DB:-user_db}
+  JOB_SERVICE_DB: ${JOB_SERVICE_DB:-job_db}
+  APPLICATION_SERVICE_DB: ${APPLICATION_SERVICE_DB:-application_db}
+  NOTIFICATION_SERVICE_DB: ${NOTIFICATION_SERVICE_DB:-notification_db}
+  RABBITMQ_URL: amqp://${RABBITMQ_USER:-jobportal}:${RABBITMQ_PASS:-jobportal_prod_password_change_me}@rabbitmq-prod:5672
+
 services:
+  app:
+    build:
+      context: ./app
+    image: jobportal/app:prod
+    container_name: app-prod
+    ports:
+      - "3305:80"
+    environment:
+      GATEWAY_URL: http://localhost:3300/api/v1
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - jobportal-prod-network
+    restart: unless-stopped
+
   gateway:
-    image: nginx:1.25-alpine
+    build:
+      context: ./gateway
+      args:
+        ENVIRONMENT: prod
+    image: jobportal/gateway:prod
     container_name: gateway-prod
     ports:
       - "3300:80"
-    volumes:
-      - ./gateway/nginx.prod.conf:/etc/nginx/nginx.conf:ro
     depends_on:
+      app:
+        condition: service_healthy
       user-service:
         condition: service_healthy
       job-service:
@@ -24,12 +60,6 @@ services:
         condition: service_healthy
       notification-service:
         condition: service_healthy
-    healthcheck:
-      test: [ "CMD-SHELL", "curl -fsS http://localhost:80/health > /dev/null || exit 1" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 5s
     networks:
       - jobportal-prod-network
     restart: unless-stopped
@@ -37,26 +67,26 @@ services:
   user-service:
     build:
       context: ./services/user-service
-      dockerfile: Dockerfile # Changed from Dockerfile.prod
+      dockerfile: Dockerfile
+    image: jobportal/user-service:prod
     container_name: user-service-prod
     ports:
       - "3301:3000"
-    env_file:
-      - .env.prod
     environment:
-      - PORT=3000
-      - DB_NAME=${USER_SERVICE_DB:?err}
+      <<: *service-env
+      PORT: 3000
+      DB_NAME: ${USER_SERVICE_DB:-user_db}
     depends_on:
       postgres:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD-SHELL", "curl -fsS http://localhost:3000/health > /dev/null || exit 1" ]
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://127.0.0.1:3000/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\""]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 20s
     networks:
       - jobportal-prod-network
     restart: unless-stopped
@@ -64,26 +94,26 @@ services:
   job-service:
     build:
       context: ./services/job-service
-      dockerfile: Dockerfile # Changed from Dockerfile.prod
+      dockerfile: Dockerfile
+    image: jobportal/job-service:prod
     container_name: job-service-prod
     ports:
       - "3302:3001"
-    env_file:
-      - .env.prod
     environment:
-      - PORT=3001
-      - DB_NAME=${JOB_SERVICE_DB:?err}
+      <<: *service-env
+      PORT: 3001
+      DB_NAME: ${JOB_SERVICE_DB:-job_db}
     depends_on:
       postgres:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD-SHELL", "curl -fsS http://localhost:3001/health > /dev/null || exit 1" ]
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://127.0.0.1:3001/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\""]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 20s
     networks:
       - jobportal-prod-network
     restart: unless-stopped
@@ -91,26 +121,26 @@ services:
   application-service:
     build:
       context: ./services/application-service
-      dockerfile: Dockerfile # Changed from Dockerfile.prod
+      dockerfile: Dockerfile
+    image: jobportal/application-service:prod
     container_name: application-service-prod
     ports:
       - "3303:3002"
-    env_file:
-      - .env.prod
     environment:
-      - PORT=3002
-      - DB_NAME=${APPLICATION_SERVICE_DB:?err}
+      <<: *service-env
+      PORT: 3002
+      DB_NAME: ${APPLICATION_SERVICE_DB:-application_db}
     depends_on:
       postgres:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD-SHELL", "curl -fsS http://localhost:3002/health > /dev/null || exit 1" ]
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://127.0.0.1:3002/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\""]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 20s
     networks:
       - jobportal-prod-network
     restart: unless-stopped
@@ -118,26 +148,26 @@ services:
   notification-service:
     build:
       context: ./services/notification-service
-      dockerfile: Dockerfile # Changed from Dockerfile.prod
+      dockerfile: Dockerfile
+    image: jobportal/notification-service:prod
     container_name: notification-service-prod
     ports:
       - "3304:3003"
-    env_file:
-      - .env.prod
     environment:
-      - PORT=3003
-      - DB_NAME=${NOTIFICATION_SERVICE_DB:?err}
+      <<: *service-env
+      PORT: 3003
+      DB_NAME: ${NOTIFICATION_SERVICE_DB:-notification_db}
     depends_on:
       postgres:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD-SHELL", "curl -fsS http://localhost:3003/health > /dev/null || exit 1" ]
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://127.0.0.1:3003/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\""]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 20s
     networks:
       - jobportal-prod-network
     restart: unless-stopped
@@ -147,15 +177,15 @@ services:
     container_name: postgres-prod
     ports:
       - "3310:5432"
-    env_file:
-      - .env.prod
     environment:
-      - POSTGRES_DB=${POSTGRES_DB:-postgres}
+      POSTGRES_USER: ${POSTGRES_USER:-jobportal}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-jobportal_prod_password_change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
     volumes:
       - postgres-prod-data:/var/lib/postgresql/data
-      - ./infrastructure/databases/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro # Fixed path
+      - ./infrastructure/databases/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}" ]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -171,10 +201,10 @@ services:
       - "3311:5672"
       - "3312:15672"
     environment:
-      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:?err}
-      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS:?err}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-jobportal}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-jobportal_prod_password_change_me}
     healthcheck:
-      test: [ "CMD-SHELL", "rabbitmq-diagnostics -q ping" ]
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
       interval: 10s
       timeout: 5s
       retries: 5

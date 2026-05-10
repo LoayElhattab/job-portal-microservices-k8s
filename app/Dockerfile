@@ -9,6 +9,7 @@ RUN flutter pub get
 
 # Copy source code and build web
 COPY . .
+RUN flutter create --platforms=web --no-pub .
 RUN flutter build web --release
 
 # Stage 2: Serve with Nginx
