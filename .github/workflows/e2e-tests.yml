@@ -1,0 +1,99 @@
+name: System Integration E2E Tests
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - main
+    # This will trigger on your fix/v1 branch when you open a PR to dev
+
+jobs:
+  integration-test:
+    name: End-to-End Environment Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create .env.test file
+        run: |
+          cat <<EOF > .env.test
+          NODE_ENV=test
+          JWT_SECRET=super_secret_test_jwt_key_123456789
+          DB_HOST=postgres-test
+          DB_PORT=5432
+          DB_USER=jobportal
+          DB_PASSWORD=testpassword
+          USER_SERVICE_DB=user_db
+          JOB_SERVICE_DB=job_db
+          APPLICATION_SERVICE_DB=application_db
+          NOTIFICATION_SERVICE_DB=notification_db
+          POSTGRES_USER=jobportal
+          POSTGRES_PASSWORD=testpassword
+          POSTGRES_DB=postgres
+          RABBITMQ_USER=jobportal
+          RABBITMQ_PASS=testpassword
+          RABBITMQ_URL=amqp://jobportal:testpassword@rabbitmq-test:5672
+          GATEWAY_URL=http://localhost:3200/api/v1
+          EOF
+
+      - name: Build and Start Test Environment
+        run: |
+          # Use the test compose file specified in your README
+          docker compose -p jobportal-test -f docker-compose.test.yml up -d --build
+
+      - name: Wait for Environment Health
+        run: |
+          echo "Waiting for all containers to become healthy (Timeout: 120s)..."
+          
+          # Loop for up to 120 seconds checking health statuses
+          for i in {1..12}; do
+            # Check if any containers are 'unhealthy' or still 'starting'
+            UNHEALTHY=$(docker ps --filter "health=unhealthy" -q)
+            STARTING=$(docker ps --filter "health=starting" -q)
+            
+            if [ -z "$UNHEALTHY" ] && [ -z "$STARTING" ]; then
+              echo "✅ All services are up and healthy!"
+              exit 0
+            fi
+            
+            echo "⏳ Waiting... Current container statuses:"
+            docker ps --format "table {{.Names}}\t{{.Status}}"
+            sleep 10
+          done
+          
+          echo "❌ Timeout waiting for healthy services. Environment failed to stabilize."
+          echo "--- Failing Container Logs ---"
+          docker compose -p jobportal-test -f docker-compose.test.yml logs
+          exit 1
+
+      - name: Smoke Test - API Gateway Routing
+        run: |
+          echo "Testing communication through API Gateway on port 3200..."
+          
+          # 1. Check Gateway Health
+          curl -fsS --retry 3 --retry-delay 2 http://localhost:3200/health
+          echo -e "\n✅ Gateway is responding"
+          
+          # 2. Check Job Service via Gateway (assumes /api/v1/jobs is public per README)
+          # We check the HTTP status code is 200
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3200/api/v1/jobs)
+          if [ "$STATUS" -ne 200 ]; then
+            echo "❌ Job Service routing failed with status $STATUS"
+            exit 1
+          fi
+          echo "✅ Job Service is successfully routing through Gateway"
+          
+      - name: Fetch Logs on Failure
+        if: failure()
+        run: |
+          echo "Tests failed. Fetching full system logs..."
+          docker compose -p jobportal-test -f docker-compose.test.yml logs
+
+      - name: Tear Down Environment
+        if: always()
+        run: |
+          # Clean up containers, networks, and volumes
+          docker compose -p jobportal-test -f docker-compose.test.yml down -v
