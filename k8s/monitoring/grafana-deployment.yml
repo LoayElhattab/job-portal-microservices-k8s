@@ -24,6 +24,12 @@ data:
           cacheLevel: 'High'
           incrementalQuerying: true
           incrementalQueryOverlapWindow: 10m
+      - name: Loki
+        type: loki
+        access: proxy
+        url: http://loki:3100
+        editable: false
+
   dashboards/dashboards.yml: |
     apiVersion: 1
     providers:

@@ -1,0 +1,86 @@
+name: Docker Integration Tests
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - main
+  push:
+    branches:
+      - dev
+      - main
+  workflow_dispatch:
+
+jobs:
+  docker-integration:
+    name: Compose stack smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create local environment files
+        run: |
+          cp .env.dev.example .env.dev
+          cp .env.prod.example .env.prod
+          cat > .env.test <<'EOF'
+          NODE_ENV=test
+          JWT_SECRET=super_secret_test_jwt_key_123456789
+          DB_HOST=postgres-test
+          DB_PORT=5432
+          DB_USER=jobportal
+          DB_PASSWORD=jobportal_test_password_change_me
+          USER_SERVICE_DB=user_db
+          JOB_SERVICE_DB=job_db
+          APPLICATION_SERVICE_DB=application_db
+          NOTIFICATION_SERVICE_DB=notification_db
+          POSTGRES_USER=jobportal
+          POSTGRES_PASSWORD=jobportal_test_password_change_me
+          POSTGRES_DB=postgres
+          RABBITMQ_USER=jobportal
+          RABBITMQ_PASS=jobportal_test_password_change_me
+          RABBITMQ_URL=amqp://jobportal:jobportal_test_password_change_me@rabbitmq-test:5672
+          GF_SECURITY_ADMIN_USER=admin
+          GF_SECURITY_ADMIN_PASSWORD=admin_test_password_change_me
+          EOF
+
+      - name: Validate compose files
+        run: |
+          docker compose --env-file .env.dev -f docker-compose.dev.yml config --quiet
+          docker compose --env-file .env.test -f docker-compose.test.yml config --quiet
+          docker compose --env-file .env.prod -f docker-compose.prod.yml config --quiet
+
+      - name: Build and start test stack
+        run: docker compose --env-file .env.test -f docker-compose.test.yml up -d --build --wait --wait-timeout 360
+
+      - name: Show stack status
+        run: docker compose --env-file .env.test -f docker-compose.test.yml ps
+
+      - name: Smoke test running system
+        run: |
+          curl -fsS http://localhost:3200/health
+          curl -fsS http://localhost:3205/health
+          curl -fsS http://localhost:3201/health
+          curl -fsS http://localhost:3202/health
+          curl -fsS http://localhost:3203/health
+          curl -fsS http://localhost:3204/health
+
+          curl -fsS http://localhost:3200/api/v1/jobs/
+
+          EMAIL="ci-$(date +%s)@example.com"
+          curl -fsS \
+            -H "Content-Type: application/json" \
+            -d "{\"name\":\"CI User\",\"email\":\"${EMAIL}\",\"password\":\"Password123!\",\"role\":\"seeker\"}" \
+            http://localhost:3200/api/v1/users/register
+
+          curl -fsS http://localhost:3205/env.json | grep -q "http://localhost:3200/api/v1"
+
+      - name: Print logs on failure
+        if: failure()
+        run: docker compose --env-file .env.test -f docker-compose.test.yml logs --no-color
+
+      - name: Tear down test stack
+        if: always()
+        run: docker compose --env-file .env.test -f docker-compose.test.yml down -v --remove-orphans

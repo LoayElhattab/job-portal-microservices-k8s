@@ -112,12 +112,15 @@ wait_for_deployment "gateway" "120s"
 echo -e "${GREEN}=== STEP 6: Monitoring ===${NC}"
 apply_manifest "monitoring/prometheus-deployment.yml" "Prometheus (ConfigMap + Deployment)"
 apply_manifest "monitoring/prometheus-service.yml" "Prometheus Service"
+apply_manifest "monitoring/loki-deployment.yml" "Loki (ConfigMap + Deployment + Service)"
+apply_manifest "monitoring/promtail-daemonset.yml" "Promtail (RBAC + ConfigMap + DaemonSet)"
 apply_manifest "monitoring/grafana-deployment.yml" "Grafana (ConfigMap + Deployment)"
 apply_manifest "monitoring/grafana-service.yml" "Grafana Service"
 
 # Wait for monitoring to be ready
 echo -e "${YELLOW}Waiting for monitoring to be ready...${NC}"
 wait_for_deployment "prometheus" "120s"
+wait_for_deployment "loki" "120s"
 wait_for_deployment "grafana" "120s"
 
 # Final Summary
@@ -139,5 +142,6 @@ echo "=========================================="
 echo "Access Points:"
 echo "  Gateway (NodePort):     http://<node-ip>:30080"
 echo "  Prometheus (ClusterIP): http://prometheus.${NAMESPACE}.svc.cluster.local:9090"
+echo "  Loki (ClusterIP):       http://loki.${NAMESPACE}.svc.cluster.local:3100"
 echo "  Grafana (ClusterIP):    http://grafana.${NAMESPACE}.svc.cluster.local:3000"
 echo "=========================================="

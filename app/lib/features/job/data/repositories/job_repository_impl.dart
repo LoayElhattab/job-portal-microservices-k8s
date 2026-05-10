@@ -2,7 +2,7 @@ import 'package:dartz/dartz.dart';
 import '../../../../core/errors/failures.dart';
 import '../../domain/entities/job.dart';
 import '../../domain/repositories/job_repository.dart';
-import '../datasourses/job_remote_datasource.dart';
+import '../datasources/job_remote_datasource.dart';
 
 class JobRepositoryImpl implements JobRepository {
   final JobRemoteDataSource remoteDataSource;
