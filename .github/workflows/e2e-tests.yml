@@ -5,7 +5,6 @@ on:
     branches:
       - dev
       - main
-    # This will trigger on your fix/v1 branch when you open a PR to dev
 
 jobs:
   integration-test:
@@ -41,16 +40,14 @@ jobs:
 
       - name: Build and Start Test Environment
         run: |
-          # Use the test compose file specified in your README
-          docker compose -p jobportal-test -f docker-compose.test.yml up -d --build
+          # Added --env-file .env.test to pass the variables to the compose file
+          docker compose --env-file .env.test -p jobportal-test -f docker-compose.test.yml up -d --build
 
       - name: Wait for Environment Health
         run: |
           echo "Waiting for all containers to become healthy (Timeout: 120s)..."
           
-          # Loop for up to 120 seconds checking health statuses
           for i in {1..12}; do
-            # Check if any containers are 'unhealthy' or still 'starting'
             UNHEALTHY=$(docker ps --filter "health=unhealthy" -q)
             STARTING=$(docker ps --filter "health=starting" -q)
             
@@ -66,7 +63,7 @@ jobs:
           
           echo "❌ Timeout waiting for healthy services. Environment failed to stabilize."
           echo "--- Failing Container Logs ---"
-          docker compose -p jobportal-test -f docker-compose.test.yml logs
+          docker compose --env-file .env.test -p jobportal-test -f docker-compose.test.yml logs
           exit 1
 
       - name: Smoke Test - API Gateway Routing
@@ -77,10 +74,9 @@ jobs:
           curl -fsS --retry 3 --retry-delay 2 http://localhost:3200/health
           echo -e "\n✅ Gateway is responding"
           
-          # 2. Check Job Service via Gateway (assumes /api/v1/jobs is public per README)
-          # We check the HTTP status code is 200
+          # 2. Check Job Service via Gateway
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3200/api/v1/jobs)
-          if [ "$STATUS" -ne 200 ]; then
+          if[ "$STATUS" -ne 200 ]; then
             echo "❌ Job Service routing failed with status $STATUS"
             exit 1
           fi
@@ -90,10 +86,11 @@ jobs:
         if: failure()
         run: |
           echo "Tests failed. Fetching full system logs..."
-          docker compose -p jobportal-test -f docker-compose.test.yml logs
+          # Added --env-file .env.test here too
+          docker compose --env-file .env.test -p jobportal-test -f docker-compose.test.yml logs
 
       - name: Tear Down Environment
         if: always()
         run: |
-          # Clean up containers, networks, and volumes
-          docker compose -p jobportal-test -f docker-compose.test.yml down -v
+          # Added --env-file .env.test here too
+          docker compose --env-file .env.test -p jobportal-test -f docker-compose.test.yml down -v
