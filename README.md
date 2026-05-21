@@ -1,5 +1,46 @@
 # Job Portal Microservices Platform
 
+## Table of Contents
+
+- [Overview](#overview)
+- [System Capabilities](#system-capabilities)
+- [Architecture & Routing](#architecture--routing)
+- [Cloud Infrastructure & Security](#cloud-infrastructure--security)
+  - [Network Architecture](#network-architecture)
+  - [Compute Infrastructure](#compute-infrastructure)
+  - [Data Layer & Security Controls](#data-layer--security-controls)
+- [Services, Asynchronous Messaging, & Data Ownership](#services-asynchronous-messaging--data-ownership)
+  - [Services](#services)
+  - [Asynchronous Messaging](#asynchronous-messaging)
+  - [Data Ownership](#data-ownership)
+- [Repository Layout](#repository-layout)
+  - [Documentation Map](#documentation-map)
+- [Local Prerequisites & Environment Files](#local-prerequisites--environment-files)
+  - [Local Prerequisites](#local-prerequisites)
+  - [Environment Files](#environment-files)
+- [Running Locally (Docker Compose)](#running-locally-docker-compose)
+  - [Development Environment](#development-environment)
+  - [Testing Environment](#testing-environment)
+  - [Production-Style Compose Environment](#production-style-compose-environment)
+  - [Running All Compose Environments](#running-all-compose-environments)
+- [Kubernetes Deployment (Minikube)](#kubernetes-deployment-minikube)
+- [AWS Terraform Deployment](#aws-terraform-deployment)
+  - [Deployment Lifecycle](#deployment-lifecycle)
+  - [Contextual Integration with Kubernetes](#contextual-integration-with-kubernetes)
+  - [Production Upgrades](#production-upgrades)
+- [API Contract Snapshot](#api-contract-snapshot)
+  - [Authentication](#authentication)
+  - [Jobs](#jobs)
+  - [Applications](#applications)
+  - [Notifications](#notifications)
+- [Observability](#observability)
+- [Validation Commands](#validation-commands)
+- [CI/CD & DevSecOps Coverage](#cicd--devsecops-coverage)
+  - [DevSecOps Scanning Engine Breakdown](#devsecops-scanning-engine-breakdown)
+- [Compliance Matrix](#compliance-matrix)
+- [Operational Notes](#operational-notes)
+- [Current Platform Summary](#current-platform-summary)
+
 ## Overview
 
 This repository implements a containerized job portal platform with a Flutter web frontend, an Nginx API gateway, four independently owned Node.js microservices, PostgreSQL database isolation, RabbitMQ event messaging, Prometheus metrics, Grafana dashboards, Docker Compose environments, Kubernetes manifests, and GitHub Actions validation.
