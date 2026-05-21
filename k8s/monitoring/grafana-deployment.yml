@@ -7,7 +7,7 @@ metadata:
     app: jobportal
     component: monitoring
 data:
-  datasources/datasource.yml: |
+  datasource.yml: |
     apiVersion: 1
     datasources:
       - name: Prometheus
@@ -24,13 +24,7 @@ data:
           cacheLevel: 'High'
           incrementalQuerying: true
           incrementalQueryOverlapWindow: 10m
-      - name: Loki
-        type: loki
-        access: proxy
-        url: http://loki:3100
-        editable: false
-
-  dashboards/dashboards.yml: |
+  dashboards.yml: |
     apiVersion: 1
     providers:
       - name: 'JobPortal Dashboards'
@@ -41,9 +35,9 @@ data:
         updateIntervalSeconds: 30
         allowUiUpdates: true
         options:
-          path: /var/lib/grafana/dashboards
+          path: /etc/grafana/provisioning/dashboards
           foldersFromFilesStructure: true
-  dashboards/jobportal-dashboard.json: |
+  jobportal-dashboard.json: |
     {
       "annotations": {
         "list": [
@@ -400,7 +394,7 @@ data:
           "pluginVersion": "10.4.0",
           "targets": [
             {
-              "expr": "up{job=~"user-service|job-service|application-service|notification-service|gateway"}",
+              "expr": "up{job=~\"user-service|job-service|application-service|notification-service|gateway\"}",
               "legendFormat": "{{job}}",
               "refId": "A"
             }
@@ -504,5 +498,12 @@ spec:
         - name: grafana-provisioning
           configMap:
             name: grafana-provisioning
+            items:
+              - key: datasource.yml
+                path: datasources/datasource.yml
+              - key: dashboards.yml
+                path: dashboards/dashboards.yml
+              - key: jobportal-dashboard.json
+                path: dashboards/jobportal-dashboard.json
         - name: grafana-storage
           emptyDir: {}

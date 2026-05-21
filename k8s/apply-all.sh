@@ -67,16 +67,20 @@ apply_manifest "01-configmap.yml" "Main ConfigMap"
 apply_manifest "02-secrets.yml" "Secrets"
 
 # Step 3: Infrastructure (Postgres + RabbitMQ)
+# When using AWS RDS, skip postgres manifests — see infrastructure/terraform/README.md
 echo -e "${GREEN}=== STEP 3: Infrastructure ===${NC}"
-apply_manifest "postgres/deployment.yml" "Postgres (ConfigMap + PVC + Deployment)"
-apply_manifest "postgres/service.yml" "Postgres Service"
+if [ "${USE_RDS:-}" != "true" ]; then
+    apply_manifest "postgres/deployment.yml" "Postgres (ConfigMap + PVC + Deployment)"
+    apply_manifest "postgres/service.yml" "Postgres Service"
+    echo -e "${YELLOW}Waiting for postgres to be ready...${NC}"
+    wait_for_deployment "postgres" "120s"
+else
+    echo -e "${YELLOW}USE_RDS=true — skipping in-cluster Postgres (RDS via Terraform)${NC}"
+fi
 apply_manifest "rabbitmq/deployment.yml" "RabbitMQ Deployment"
 apply_manifest "rabbitmq/service.yml" "RabbitMQ Service"
-
-# Wait for infrastructure to be ready
-echo -e "${YELLOW}Waiting for infrastructure to be ready...${NC}"
-wait_for_deployment "postgres" "120s"
-wait_for_deployment "rabbitmq" "120s"
+echo -e "${YELLOW}Waiting for rabbitmq to be ready...${NC}"
+wait_for_deployment "rabbitmq" "300s"
 
 # Step 4: Backend Services
 echo -e "${GREEN}=== STEP 4: Backend Services ===${NC}"
@@ -112,15 +116,12 @@ wait_for_deployment "gateway" "120s"
 echo -e "${GREEN}=== STEP 6: Monitoring ===${NC}"
 apply_manifest "monitoring/prometheus-deployment.yml" "Prometheus (ConfigMap + Deployment)"
 apply_manifest "monitoring/prometheus-service.yml" "Prometheus Service"
-apply_manifest "monitoring/loki-deployment.yml" "Loki (ConfigMap + Deployment + Service)"
-apply_manifest "monitoring/promtail-daemonset.yml" "Promtail (RBAC + ConfigMap + DaemonSet)"
 apply_manifest "monitoring/grafana-deployment.yml" "Grafana (ConfigMap + Deployment)"
 apply_manifest "monitoring/grafana-service.yml" "Grafana Service"
 
 # Wait for monitoring to be ready
 echo -e "${YELLOW}Waiting for monitoring to be ready...${NC}"
 wait_for_deployment "prometheus" "120s"
-wait_for_deployment "loki" "120s"
 wait_for_deployment "grafana" "120s"
 
 # Final Summary
@@ -142,6 +143,5 @@ echo "=========================================="
 echo "Access Points:"
 echo "  Gateway (NodePort):     http://<node-ip>:30080"
 echo "  Prometheus (ClusterIP): http://prometheus.${NAMESPACE}.svc.cluster.local:9090"
-echo "  Loki (ClusterIP):       http://loki.${NAMESPACE}.svc.cluster.local:3100"
 echo "  Grafana (ClusterIP):    http://grafana.${NAMESPACE}.svc.cluster.local:3000"
 echo "=========================================="

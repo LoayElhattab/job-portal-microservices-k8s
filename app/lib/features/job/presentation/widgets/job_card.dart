@@ -31,7 +31,7 @@ class JobCard extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    '\$${job.salary.toInt()}',
+                    job.salary.isNotEmpty ? (job.salary.startsWith('\$') ? job.salary : '\$${job.salary}') : 'N/A',
                     style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                 ],

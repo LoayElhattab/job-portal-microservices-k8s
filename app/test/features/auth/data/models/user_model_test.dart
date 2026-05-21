@@ -5,7 +5,7 @@ import 'package:jobportal_app/features/auth/domain/entities/user.dart';
 
 void main() {
   final tUserModel = UserModel(
-    id: 1,
+    id: '1',
     email: 'test@example.com',
     role: 'seeker',
   );
@@ -18,7 +18,7 @@ void main() {
     test('should return a valid model when the JSON is correct', () async {
       // arrange
       final Map<String, dynamic> jsonMap = {
-        'id': 1,
+        'id': '1',
         'email': 'test@example.com',
         'role': 'seeker',
       };

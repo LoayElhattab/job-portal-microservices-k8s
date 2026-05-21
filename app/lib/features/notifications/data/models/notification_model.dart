@@ -15,7 +15,9 @@ class NotificationModel extends Notification {
       title: json['title'],
       message: json['message'],
       isRead: json['isRead'] ?? false,
-      createdAt: DateTime.parse(json['createdAt']),
+      createdAt: json['createdAt'] != null 
+          ? (DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()) 
+          : DateTime.now(),
     );
   }
 }

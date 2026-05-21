@@ -35,8 +35,20 @@ describe('Application Service API Tests', () => {
   const employerToken = generateToken(employerId, 'employer@example.com', 'employer');
   const otherEmployerToken = generateToken(otherEmployerId, 'other@example.com', 'employer');
 
+  const mockJobLookup = (overrides = {}) => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: overrides.ok ?? true,
+      status: overrides.status ?? 200,
+      json: jest.fn().mockResolvedValue(overrides.payload ?? {
+        success: true,
+        data: { job: { id: jobId, employer_id: employerId } }
+      }),
+    });
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
+    mockJobLookup();
   });
 
   describe('GET /health', () => {
@@ -68,7 +80,28 @@ describe('Application Service API Tests', () => {
       expect(res.statusCode).toEqual(201);
       expect(res.body.success).toBe(true);
       expect(res.body.data).toMatchObject({ id: applicationId, job_id: jobId });
+      expect(global.fetch).toHaveBeenCalledWith(`http://job-service:3001/api/v1/jobs/${jobId}`);
       expect(publishEvent).toHaveBeenCalledWith('application.submitted', expect.any(Object));
+    });
+
+    it('should accept snake_case payloads from the browser app', async () => {
+      const mockApp = {
+        id: applicationId,
+        job_id: jobId,
+        employer_id: employerId,
+        seeker_id: seekerId,
+        status: 'pending'
+      };
+      pool.query.mockResolvedValueOnce({ rows: [mockApp] });
+
+      const res = await request(app)
+        .post('/api/v1/applications')
+        .set('Authorization', `Bearer ${seekerToken}`)
+        .send({ job_id: jobId, employer_id: employerId, cover_letter: 'I am interested' });
+
+      expect(res.statusCode).toEqual(201);
+      expect(pool.query).toHaveBeenCalledWith(expect.any(String), [jobId, seekerId, employerId, 'I am interested']);
+      expect(res.body.data).toMatchObject({ id: applicationId, job_id: jobId });
     });
 
     it('should return 400 if jobId is missing', async () => {
@@ -80,6 +113,42 @@ describe('Application Service API Tests', () => {
       expect(res.statusCode).toEqual(400);
       expect(res.body.success).toBe(false);
       expect(res.body.error.code).toBe('BAD_REQUEST');
+    });
+
+    it('should derive employerId from the job service when employerId is missing', async () => {
+      const mockApp = {
+        id: applicationId,
+        job_id: jobId,
+        employer_id: employerId,
+        seeker_id: seekerId,
+        status: 'pending'
+      };
+      pool.query.mockResolvedValueOnce({ rows: [mockApp] });
+
+      const res = await request(app)
+        .post('/api/v1/applications')
+        .set('Authorization', `Bearer ${seekerToken}`)
+        .send({ job_id: jobId });
+
+      expect(res.statusCode).toEqual(201);
+      expect(pool.query).toHaveBeenCalledWith(expect.any(String), [jobId, seekerId, employerId, undefined]);
+    });
+
+    it('should return 404 if the job does not exist', async () => {
+      global.fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        json: jest.fn().mockResolvedValue({ success: false }),
+      });
+
+      const res = await request(app)
+        .post('/api/v1/applications')
+        .set('Authorization', `Bearer ${seekerToken}`)
+        .send({ jobId });
+
+      expect(res.statusCode).toEqual(404);
+      expect(res.body.error.code).toBe('JOB_NOT_FOUND');
+      expect(pool.query).not.toHaveBeenCalled();
     });
 
     it('should return 401 if no token is provided', async () => {

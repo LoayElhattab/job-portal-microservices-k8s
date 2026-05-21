@@ -14,3 +14,8 @@ class JobError extends JobState {
   final String message;
   const JobError({required this.message});
 }
+
+class JobCreated extends JobState {
+  final Job job;
+  const JobCreated({required this.job});
+}

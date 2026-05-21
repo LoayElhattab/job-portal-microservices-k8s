@@ -6,8 +6,8 @@ class ApplyForJobUseCase {
   ApplyForJobUseCase(this.repository);
 
   Future<Application> call(
-    int jobId,
-    int employerId,
+    String jobId,
+    String employerId,
     String coverLetter,
   ) async {
     return await repository.applyForJob(jobId, employerId, coverLetter);

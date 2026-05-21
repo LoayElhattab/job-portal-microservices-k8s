@@ -1,0 +1,57 @@
+# One-time Job: create four logical databases on RDS (run inside the VPC).
+# Prerequisites: namespace, jobportal-secrets with DB_PASSWORD matching Terraform output.
+#
+#   kubectl apply -f k8s/rds-init-job.yaml -n jobportal-prod
+#   kubectl logs job/rds-init-databases -n jobportal-prod -f
+#
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rds-init-databases
+  namespace: jobportal-prod
+  labels:
+    app: jobportal
+    component: rds-init
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: psql
+          image: postgres:16-alpine
+          env:
+            - name: PGHOST
+              valueFrom:
+                configMapKeyRef:
+                  name: jobportal-config
+                  key: DB_HOST
+            - name: PGPORT
+              valueFrom:
+                configMapKeyRef:
+                  name: jobportal-config
+                  key: DB_PORT
+            - name: PGUSER
+              valueFrom:
+                configMapKeyRef:
+                  name: jobportal-config
+                  key: DB_USER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: jobportal-secrets
+                  key: DB_PASSWORD
+          command:
+            - sh
+            - -c
+            - |
+              psql -d postgres -v ON_ERROR_STOP=1 <<'EOSQL'
+              CREATE DATABASE user_db;
+              CREATE DATABASE job_db;
+              CREATE DATABASE application_db;
+              CREATE DATABASE notification_db;
+              GRANT ALL PRIVILEGES ON DATABASE user_db TO jobportal;
+              GRANT ALL PRIVILEGES ON DATABASE job_db TO jobportal;
+              GRANT ALL PRIVILEGES ON DATABASE application_db TO jobportal;
+              GRANT ALL PRIVILEGES ON DATABASE notification_db TO jobportal;
+              EOSQL

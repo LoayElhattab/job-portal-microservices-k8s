@@ -7,8 +7,8 @@ import '../manager/application_event.dart';
 import '../manager/application_state.dart';
 
 class ApplyPage extends StatefulWidget {
-  final int jobId;
-  final int employerId;
+  final String jobId;
+  final String employerId;
 
   const ApplyPage({super.key, required this.jobId, required this.employerId});
 

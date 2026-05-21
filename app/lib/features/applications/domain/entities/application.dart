@@ -1,19 +1,19 @@
 class Application {
-  final int id;
-  final int jobId;
-  final int seekerId;
-  final int employerId;
+  final String id;
+  final String? jobId;
+  final String seekerId;
+  final String? employerId;
   final String status;
   final String? coverLetter;
-  final DateTime createdAt;
+  final DateTime? createdAt;
 
   Application({
     required this.id,
-    required this.jobId,
+    this.jobId,
     required this.seekerId,
-    required this.employerId,
+    this.employerId,
     required this.status,
     this.coverLetter,
-    required this.createdAt,
+    this.createdAt,
   });
 }

@@ -9,8 +9,8 @@ class ApplicationRepositoryImpl implements ApplicationRepository {
 
   @override
   Future<Application> applyForJob(
-    int jobId,
-    int employerId,
+    String jobId,
+    String employerId,
     String coverLetter,
   ) async {
     return await remoteDataSource.applyForJob(jobId, employerId, coverLetter);
@@ -22,7 +22,7 @@ class ApplicationRepositoryImpl implements ApplicationRepository {
   }
 
   @override
-  Future<Application> updateStatus(int applicationId, String status) async {
+  Future<Application> updateStatus(String applicationId, String status) async {
     return await remoteDataSource.updateStatus(applicationId, status);
   }
 }

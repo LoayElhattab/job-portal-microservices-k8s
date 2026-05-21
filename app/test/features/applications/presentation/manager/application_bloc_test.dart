@@ -30,10 +30,10 @@ void main() {
 
   final tApplications = [
     Application(
-      id: 1,
-      jobId: 1,
-      seekerId: 1,
-      employerId: 1,
+      id: '1',
+      jobId: '1',
+      seekerId: '1',
+      employerId: '1',
       status: 'pending',
       createdAt: DateTime.now(),
     )
@@ -75,11 +75,11 @@ void main() {
     blocTest<ApplicationBloc, ApplicationState>(
       'emits [ApplicationLoading, ApplicationActionSuccess] when successful',
       build: () {
-        when(mockApplyForJobUseCase(1, 1, 'Hi')).thenAnswer((_) async => tApplications[0]);
+        when(mockApplyForJobUseCase('1', '1', 'Hi')).thenAnswer((_) async => tApplications[0]);
         when(mockGetApplicationsUseCase()).thenAnswer((_) async => tApplications);
         return applicationBloc;
       },
-      act: (bloc) => bloc.add(ApplyForJobEvent(jobId: 1, employerId: 1, coverLetter: 'Hi')),
+      act: (bloc) => bloc.add(ApplyForJobEvent(jobId: '1', employerId: '1', coverLetter: 'Hi')),
       expect: () => [
         isA<ApplicationLoading>(),
         isA<ApplicationActionSuccess>(),
@@ -91,10 +91,10 @@ void main() {
     blocTest<ApplicationBloc, ApplicationState>(
       'emits [ApplicationLoading, ApplicationError] on duplicate application',
       build: () {
-        when(mockApplyForJobUseCase(1, 1, 'Hi')).thenThrow(Exception('DUPLICATE_ENTRY'));
+        when(mockApplyForJobUseCase('1', '1', 'Hi')).thenThrow(Exception('DUPLICATE_ENTRY'));
         return applicationBloc;
       },
-      act: (bloc) => bloc.add(ApplyForJobEvent(jobId: 1, employerId: 1, coverLetter: 'Hi')),
+      act: (bloc) => bloc.add(ApplyForJobEvent(jobId: '1', employerId: '1', coverLetter: 'Hi')),
       expect: () => [
         isA<ApplicationLoading>(),
         isA<ApplicationError>(),

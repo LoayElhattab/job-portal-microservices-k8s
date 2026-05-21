@@ -6,6 +6,7 @@ import '../features/auth/presentation/pages/login_page.dart';
 import '../features/auth/presentation/pages/register_page.dart';
 import '../features/job/presentation/manager/job_bloc.dart';
 import '../features/job/presentation/pages/jobs_page.dart';
+import '../features/job/presentation/pages/job_create_page.dart';
 import '../features/job/presentation/widgets/job_card.dart';
 import '../features/notifications/presentation/pages/notifications_page.dart';
 import '../features/notifications/presentation/widgets/notification_badge.dart';
@@ -60,12 +61,12 @@ class AppRouter {
         name: 'apply',
         builder: (context, state) {
           final Map<String, dynamic> args = state.extra as Map<String, dynamic>? ?? {};
-          final int jobId = args['jobId'] ?? 0;
-          final int employerId = args['employerId'] ?? 0;
+          final String jobId = args['jobId']?.toString() ?? '';
+          final String employerId = args['employerId']?.toString() ?? '';
 
           return ApplyPage(
-            jobId: int.tryParse(jobId.toString()) ?? 0,
-            employerId: int.tryParse(employerId.toString()) ?? 0,
+            jobId: jobId,
+            employerId: employerId,
           );
         },
       ),
@@ -87,57 +88,12 @@ class AppRouter {
       GoRoute(
         path: '/jobs',
         name: 'jobs',
-        builder: (context, state) {
-          context.read<JobBloc>().add(GetJobsEvent());
-          return Scaffold(
-            appBar: AppBar(
-              title: const Text('Jobs Dashboard'),
-              actions: [
-                NotificationBadge(
-                  onTap: () => context.push('/notifications'),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.person),
-                  onPressed: () => context.push('/profile'),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.logout),
-                  onPressed: () async {
-                    await _authStorage.deleteToken();
-                    if (context.mounted) context.go('/login');
-                  },
-                ),
-              ],
-            ),
-            body: BlocBuilder<JobBloc, JobState>(
-              builder: (context, state) {
-                if (state is JobLoading) {
-                  return const Center(child: CircularProgressIndicator());
-                } else if (state is JobLoaded) {
-                  return ListView.builder(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: state.jobs.length,
-                    itemBuilder: (context, index) {
-                      final job = state.jobs[index];
-                      return JobCard(
-                        job: job,
-                        onTap: () {
-                          context.push('/apply', extra: {
-                            'jobId': job.id,
-                            'employerId': 123,
-                          });
-                        },
-                      );
-                    },
-                  );
-                } else if (state is JobError) {
-                  return Center(child: Text(state.message));
-                }
-                return const Center(child: Text('Please wait...'));
-              },
-            ),
-          );
-        },
+        builder: (context, state) => const JobsPage(),
+      ),
+      GoRoute(
+        path: '/create-job',
+        name: 'create-job',
+        builder: (context, state) => const JobCreatePage(),
       ),
     ],
   );

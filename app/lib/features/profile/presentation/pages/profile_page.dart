@@ -37,6 +37,12 @@ class _ProfilePageState extends State<ProfilePage> {
                 SliverAppBar(
                   expandedHeight: 120,
                   pinned: true,
+                  actions: [
+                    IconButton(
+                      icon: const Icon(Icons.edit, color: Colors.white),
+                      onPressed: () => _showEditDialog(context, user),
+                    ),
+                  ],
                   flexibleSpace: FlexibleSpaceBar(
                     title: Text(user.name,
                         style: const TextStyle(color: Colors.white, fontSize: 16)),
@@ -55,10 +61,11 @@ class _ProfilePageState extends State<ProfilePage> {
                             style: const TextStyle(height: 1.5, color: Colors.black87)
                         ),
                       ),
-                      ProfileInfoSection(
-                        title: "Skills",
-                        content: _buildSkillsWrap(user.skills),
-                      ),
+                      if (user.role == 'seeker')
+                        ProfileInfoSection(
+                          title: "Skills",
+                          content: _buildSkillsWrap(user.skills),
+                        ),
                       const SizedBox(height: 20),
                     ],
                   ),
@@ -71,6 +78,82 @@ class _ProfilePageState extends State<ProfilePage> {
           return const Center(child: Text("Start loading profile..."));
         },
       ),
+    );
+  }
+
+  void _showEditDialog(BuildContext context, user) {
+    final nameController = TextEditingController(text: user.name);
+    final bioController = TextEditingController(text: user.bio);
+    final skillsController = TextEditingController(text: user.skills.join(', '));
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Edit Profile'),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: nameController,
+                    decoration: const InputDecoration(labelText: 'Name'),
+                    validator: (value) =>
+                        value == null || value.trim().isEmpty ? 'Please enter your name' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: bioController,
+                    decoration: const InputDecoration(labelText: 'About Me'),
+                    maxLines: 3,
+                  ),
+                  if (user.role == 'seeker') ...[
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: skillsController,
+                      decoration: const InputDecoration(
+                        labelText: 'Skills (e.g. Flutter, Node.js, AWS)',
+                        hintText: 'Flutter, Node.js, AWS',
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (formKey.currentState!.validate()) {
+                  List<String>? skillsList;
+                  if (user.role == 'seeker') {
+                    final text = skillsController.text.trim();
+                    skillsList = text.isEmpty
+                        ? <String>[]
+                        : text.split(',').map((e) => e.trim()).toList();
+                  }
+                  context.read<ProfileBloc>().add(
+                        UpdateProfileEvent(
+                          name: nameController.text.trim(),
+                          bio: bioController.text.trim(),
+                          skills: skillsList,
+                        ),
+                      );
+                  Navigator.pop(dialogContext);
+                }
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
     );
   }
 

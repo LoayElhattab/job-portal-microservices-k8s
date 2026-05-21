@@ -20,6 +20,9 @@ const MIGRATION = `
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
   );
+
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT DEFAULT 'No bio available';
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS skills TEXT[] DEFAULT '{}';
 `;
 
 async function connectWithRetry(retries = 10, delay = 3000) {

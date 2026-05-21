@@ -18,6 +18,24 @@ const list = async (req, res, next) => {
   }
 };
 
+const markAsRead = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.userId;
+
+    const notification = await notificationService.markAsRead(id, userId);
+
+    if (!notification) {
+      return res.status(404).json(ApiResponse.error('Notification not found', 404));
+    }
+
+    res.status(200).json(ApiResponse.success(notification));
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
-  list
+  list,
+  markAsRead
 };

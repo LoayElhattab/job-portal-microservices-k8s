@@ -8,7 +8,6 @@ volumes:
   postgres-dev-data:
   prometheus-dev-data:
   grafana-dev-data:
-  loki-dev-data:
 
 x-service-env: &service-env
   NODE_ENV: development
@@ -34,7 +33,7 @@ services:
     environment:
       GATEWAY_URL: http://localhost:3100/api/v1
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/health >/dev/null || exit 1"]
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1/health >/dev/null || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -87,7 +86,7 @@ services:
       rabbitmq:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "node -e \"require('http').get('http://127.0.0.1:3000/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\""]
+      test: [ "CMD-SHELL", "node -e \"require('http').get('http://127.0.0.1:3000/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\"" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -116,7 +115,7 @@ services:
       rabbitmq:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "node -e \"require('http').get('http://127.0.0.1:3001/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\""]
+      test: [ "CMD-SHELL", "node -e \"require('http').get('http://127.0.0.1:3001/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\"" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -146,7 +145,7 @@ services:
       rabbitmq:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "node -e \"require('http').get('http://127.0.0.1:3002/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\""]
+      test: [ "CMD-SHELL", "node -e \"require('http').get('http://127.0.0.1:3002/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\"" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -176,7 +175,7 @@ services:
       rabbitmq:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "node -e \"require('http').get('http://127.0.0.1:3003/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\""]
+      test: [ "CMD-SHELL", "node -e \"require('http').get('http://127.0.0.1:3003/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\"" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -198,7 +197,7 @@ services:
       - postgres-dev-data:/var/lib/postgresql/data
       - ./infrastructure/databases/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}" ]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -217,7 +216,7 @@ services:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-jobportal}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-jobportal_dev_password_change_me}
     healthcheck:
-      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      test: [ "CMD-SHELL", "rabbitmq-diagnostics -q ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -244,7 +243,7 @@ services:
       notification-service:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9090/-/healthy >/dev/null || exit 1"]
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:9090/-/healthy >/dev/null || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -267,47 +266,12 @@ services:
     depends_on:
       prometheus:
         condition: service_healthy
-      loki:
-        condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health >/dev/null || exit 1"]
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health >/dev/null || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 20s
-    networks:
-      - jobportal-dev-network
-    restart: unless-stopped
-
-  loki:
-    image: grafana/loki:2.9.5
-    container_name: loki-dev
-    ports:
-      - "3122:3100"
-    command: -config.file=/etc/loki/loki-config.yml
-    volumes:
-      - loki-dev-data:/tmp/loki
-      - ./infrastructure/monitoring/loki/loki-config.yml:/etc/loki/loki-config.yml:ro
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3100/ready >/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    networks:
-      - jobportal-dev-network
-    restart: unless-stopped
-
-  promtail:
-    image: grafana/promtail:2.9.5
-    container_name: promtail-dev
-    command: -config.file=/etc/promtail/promtail-config.yml
-    volumes:
-      - ./infrastructure/monitoring/promtail/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-    depends_on:
-      loki:
-        condition: service_healthy
     networks:
       - jobportal-dev-network
     restart: unless-stopped

@@ -4,10 +4,10 @@ import 'package:jobportal_app/features/applications/domain/entities/application.
 
 void main() {
   final tApplicationModel = ApplicationModel(
-    id: 1,
-    jobId: 1,
-    seekerId: 1,
-    employerId: 1,
+    id: '1',
+    jobId: '1',
+    seekerId: '1',
+    employerId: '1',
     status: 'pending',
     coverLetter: 'Hello',
     createdAt: DateTime.parse('2026-05-09T00:00:00.000Z'),
@@ -21,10 +21,10 @@ void main() {
     test('should return a valid model when the JSON is correct', () async {
       // arrange
       final Map<String, dynamic> jsonMap = {
-        'id': 1,
-        'job_id': 1,
-        'seeker_id': 1,
-        'employer_id': 1,
+        'id': '1',
+        'job_id': '1',
+        'seeker_id': '1',
+        'employer_id': '1',
         'status': 'pending',
         'cover_letter': 'Hello',
         'created_at': '2026-05-09T00:00:00.000Z',

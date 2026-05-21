@@ -28,11 +28,12 @@ void main() {
   final tJobs = [
     Job(
       id: '1',
+      employerId: '10',
       title: 'Test Job',
       description: 'Desc',
       companyName: 'Co',
       location: 'Loc',
-      salary: 100.0,
+      salary: '100.0',
       requirements: const [],
     )
   ];

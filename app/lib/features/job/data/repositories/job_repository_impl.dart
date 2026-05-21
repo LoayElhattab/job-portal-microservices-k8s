@@ -23,4 +23,26 @@ class JobRepositoryImpl implements JobRepository {
   Future<Either<Failure, Job>> getJobDetails(String id) async {
     throw UnimplementedError();
   }
+
+  @override
+  Future<Either<Failure, Job>> createJob(
+    String title,
+    String description,
+    String company,
+    String location,
+    String salary,
+  ) async {
+    try {
+      final remoteJob = await remoteDataSource.createJob(
+        title,
+        description,
+        company,
+        location,
+        salary,
+      );
+      return Right(remoteJob);
+    } catch (e) {
+      return Left(ServerFailure());
+    }
+  }
 }

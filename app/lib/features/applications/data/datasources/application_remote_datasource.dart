@@ -7,8 +7,8 @@ class ApplicationRemoteDataSource {
   ApplicationRemoteDataSource(this.apiClient);
 
   Future<ApplicationModel> applyForJob(
-    int jobId,
-    int employerId,
+    String jobId,
+    String employerId,
     String coverLetter,
   ) async {
     final response = await apiClient.dio.post(
@@ -29,7 +29,7 @@ class ApplicationRemoteDataSource {
   }
 
   Future<ApplicationModel> updateStatus(
-    int applicationId,
+    String applicationId,
     String status,
   ) async {
     final response = await apiClient.dio.patch(

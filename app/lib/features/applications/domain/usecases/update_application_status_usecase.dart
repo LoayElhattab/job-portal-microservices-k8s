@@ -5,7 +5,7 @@ class UpdateApplicationStatusUseCase {
   final ApplicationRepository repository;
   UpdateApplicationStatusUseCase(this.repository);
 
-  Future<Application> call(int applicationId, String status) async {
+  Future<Application> call(String applicationId, String status) async {
     return await repository.updateStatus(applicationId, status);
   }
 }

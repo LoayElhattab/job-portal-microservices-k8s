@@ -31,7 +31,7 @@ class ApplicationCard extends StatelessWidget {
                 Text(
                   isEmployer
                       ? 'Applicant #${application.seekerId}'
-                      : 'Job #${application.jobId}',
+                      : 'Job #${application.jobId ?? ''}',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -41,7 +41,7 @@ class ApplicationCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Applied on: ${application.createdAt.toLocal().toString().split(' ')[0]}',
+              'Applied on: ${application.createdAt != null ? application.createdAt!.toLocal().toString().split(' ')[0] : 'N/A'}',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             if (application.coverLetter != null &&

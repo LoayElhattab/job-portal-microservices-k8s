@@ -2,7 +2,45 @@ const { pool } = require('../db');
 const { publishEvent } = require('../../rabbitmq/publisher');
 const { ApiError } = require('../utils/ApiError');
 
-const applyForJob = async (jobId, seekerId, employerId, coverLetter) => {
+const getJobServiceUrl = () => (process.env.JOB_SERVICE_URL || 'http://job-service:3001').replace(/\/+$/, '');
+
+const resolveEmployerIdForJob = async (jobId) => {
+  let response;
+
+  try {
+    response = await fetch(`${getJobServiceUrl()}/api/v1/jobs/${encodeURIComponent(jobId)}`);
+  } catch (error) {
+    throw new ApiError(502, 'JOB_SERVICE_UNAVAILABLE', 'Could not verify this job before applying.');
+  }
+
+  if (response.status === 404) {
+    throw new ApiError(404, 'JOB_NOT_FOUND', 'Job not found.');
+  }
+
+  let payload;
+  try {
+    payload = await response.json();
+  } catch (error) {
+    throw new ApiError(502, 'JOB_SERVICE_INVALID_RESPONSE', 'Job service returned an invalid response.');
+  }
+
+  if (!response.ok || payload.success === false) {
+    throw new ApiError(502, 'JOB_SERVICE_ERROR', 'Could not verify this job before applying.');
+  }
+
+  const job = payload.data?.job || payload.data;
+  const employerId = job?.employer_id || job?.employerId;
+
+  if (!employerId) {
+    throw new ApiError(502, 'JOB_SERVICE_INVALID_RESPONSE', 'Job service did not return employer information.');
+  }
+
+  return employerId;
+};
+
+const applyForJob = async (jobId, seekerId, _submittedEmployerId, coverLetter) => {
+  const employerId = await resolveEmployerIdForJob(jobId);
+
   const insertQuery = `
     INSERT INTO applications (job_id, seeker_id, employer_id, cover_letter, status)
     VALUES ($1, $2, $3, $4, 'pending')
@@ -65,5 +103,6 @@ const updateApplicationStatus = async (applicationId, employerId, status) => {
 module.exports = {
   applyForJob,
   getApplications,
-  updateApplicationStatus
+  updateApplicationStatus,
+  resolveEmployerIdForJob
 };

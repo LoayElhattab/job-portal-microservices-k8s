@@ -36,6 +36,6 @@ class AuthRepositoryImpl implements AuthRepository {
     final token = await authStorage.getToken();
     if (token == null) return null;
 
-    return User(id: 0, email: 'cached@user.com', role: 'unknown');
+    return User(id: '0', email: 'cached@user.com', role: 'unknown');
   }
 }

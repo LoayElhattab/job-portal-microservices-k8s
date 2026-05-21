@@ -14,15 +14,15 @@ done
 
 echo ""
 echo "Starting DEVELOPMENT environment..."
-docker compose -f docker-compose.dev.yml -p jobportal-dev up -d --build
+docker compose -f docker-compose.dev.yml -p jobportal-dev up --pull never -d
 
 echo ""
 echo "Starting TEST environment..."
-docker compose -f docker-compose.test.yml -p jobportal-test up -d --build
+docker compose -f docker-compose.test.yml -p jobportal-test up --pull never -d
 
 echo ""
 echo "Starting PRODUCTION environment..."
-docker compose -f docker-compose.prod.yml -p jobportal-prod up -d --build
+docker compose -f docker-compose.prod.yml -p jobportal-prod up --pull never -d
 
 echo ""
 echo "=========================================="

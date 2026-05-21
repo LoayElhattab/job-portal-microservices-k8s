@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../domain/usecases/login_usecase.dart';
@@ -35,7 +36,19 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         );
         emit(AuthAuthenticated(user));
       } catch (e) {
-        emit(AuthError('Failed to register. Email might already be in use.'));
+        String message = 'Failed to register. Server error.';
+        if (e is DioException) {
+          final statusCode = e.response?.statusCode;
+          if (statusCode == 409) {
+            message = 'Failed to register. Email might already be in use.';
+          } else if (e.response?.data != null && e.response?.data is Map) {
+            final errorData = e.response?.data['error'];
+            if (errorData != null && errorData is Map && errorData['message'] != null) {
+              message = errorData['message'];
+            }
+          }
+        }
+        emit(AuthError(message));
       }
     });
 

@@ -5,15 +5,23 @@ import 'package:mockito/mockito.dart';
 import 'package:jobportal_app/core/errors/failures.dart';
 import 'package:jobportal_app/features/job/domain/entities/job.dart';
 import 'package:jobportal_app/features/job/presentation/manager/job_bloc.dart';
+import 'package:jobportal_app/features/job/domain/usecases/create_job_usecase.dart';
 import '../../../../helpers/mock_helper.mocks.dart';
+
+class MockCreateJobUseCase extends Mock implements CreateJobUseCase {}
 
 void main() {
   late JobBloc jobBloc;
   late MockGetJobsUseCase mockGetJobsUseCase;
+  late MockCreateJobUseCase mockCreateJobUseCase;
 
   setUp(() {
     mockGetJobsUseCase = MockGetJobsUseCase();
-    jobBloc = JobBloc(getJobsUseCase: mockGetJobsUseCase);
+    mockCreateJobUseCase = MockCreateJobUseCase();
+    jobBloc = JobBloc(
+      getJobsUseCase: mockGetJobsUseCase,
+      createJobUseCase: mockCreateJobUseCase,
+    );
   });
 
   tearDown(() {
@@ -23,11 +31,12 @@ void main() {
   final tJobs = [
     Job(
       id: '1',
+      employerId: '10',
       title: 'Job 1',
       description: 'Desc 1',
       companyName: 'Co 1',
       location: 'Loc 1',
-      salary: 100.0,
+      salary: '100.0',
       requirements: const [],
     )
   ];

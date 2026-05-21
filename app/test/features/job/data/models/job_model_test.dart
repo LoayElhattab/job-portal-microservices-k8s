@@ -5,11 +5,12 @@ import 'package:jobportal_app/features/job/domain/entities/job.dart';
 void main() {
   final tJobModel = JobModel(
     id: '1',
+    employerId: '10',
     title: 'Software Engineer',
     description: 'A great role',
     companyName: 'Tech Corp',
     location: 'Remote',
-    salary: 100000.0,
+    salary: '100000',
     requirements: const ['Dart', 'Flutter'],
   );
 
@@ -22,6 +23,7 @@ void main() {
       // arrange
       final Map<String, dynamic> jsonMap = {
         'id': 1,
+        'employer_id': '10',
         'title': 'Software Engineer',
         'description': 'A great role',
         'companyName': 'Tech Corp',
@@ -41,7 +43,7 @@ void main() {
       final result = JobModel.fromJson({});
       expect(result.id, '');
       expect(result.title, '');
-      expect(result.salary, 0.0);
+      expect(result.salary, '');
       expect(result.requirements, []);
     });
   });

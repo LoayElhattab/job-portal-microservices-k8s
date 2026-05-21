@@ -3,8 +3,8 @@ abstract class ApplicationEvent {}
 class LoadApplications extends ApplicationEvent {}
 
 class ApplyForJobEvent extends ApplicationEvent {
-  final int jobId;
-  final int employerId;
+  final String jobId;
+  final String employerId;
   final String coverLetter;
 
   ApplyForJobEvent({
@@ -15,7 +15,7 @@ class ApplyForJobEvent extends ApplicationEvent {
 }
 
 class UpdateStatusEvent extends ApplicationEvent {
-  final int applicationId;
+  final String applicationId;
   final String newStatus;
 
   UpdateStatusEvent({required this.applicationId, required this.newStatus});

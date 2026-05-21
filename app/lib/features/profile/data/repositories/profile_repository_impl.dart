@@ -18,4 +18,14 @@ class ProfileRepositoryImpl implements ProfileRepository {
       return Left(ServerFailure());
     }
   }
+
+  @override
+  Future<Either<Failure, Profile>> updateProfile({required String name, required String bio, List<String>? skills}) async {
+    try {
+      final remoteProfile = await remoteDataSource.updateProfile(name, bio, skills);
+      return Right(remoteProfile);
+    } catch (e) {
+      return Left(ServerFailure());
+    }
+  }
 }

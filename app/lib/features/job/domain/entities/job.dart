@@ -2,15 +2,17 @@ import 'package:equatable/equatable.dart';
 
 class Job extends Equatable {
   final String id;
+  final String employerId;
   final String title;
   final String description;
   final String companyName;
   final String location;
-  final double salary;
+  final String salary;
   final List<String> requirements;
 
   const Job({
     required this.id,
+    required this.employerId,
     required this.title,
     required this.description,
     required this.companyName,
@@ -20,5 +22,5 @@ class Job extends Equatable {
   });
 
   @override
-  List<Object?> get props => [id, title, description, companyName, location, salary, requirements];
+  List<Object?> get props => [id, employerId, title, description, companyName, location, salary, requirements];
 }

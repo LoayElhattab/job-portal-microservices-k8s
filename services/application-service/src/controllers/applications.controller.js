@@ -4,7 +4,17 @@ const { ApiError } = require('../utils/ApiError');
 
 const applyForJob = async (req, res, next) => {
   try {
-    const { jobId, employerId, coverLetter } = req.body;
+    const {
+      jobId: camelJobId,
+      job_id: snakeJobId,
+      employerId: camelEmployerId,
+      employer_id: snakeEmployerId,
+      coverLetter: camelCoverLetter,
+      cover_letter: snakeCoverLetter,
+    } = req.body;
+    const jobId = camelJobId || snakeJobId;
+    const employerId = camelEmployerId || snakeEmployerId;
+    const coverLetter = camelCoverLetter ?? snakeCoverLetter;
     
     if (!jobId) {
       throw new ApiError(400, 'BAD_REQUEST', 'jobId is required');

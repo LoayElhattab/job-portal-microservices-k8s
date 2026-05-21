@@ -18,6 +18,7 @@ import 'features/job/data/datasources/job_remote_datasource.dart';
 import 'features/job/data/repositories/job_repository_impl.dart';
 import 'features/job/domain/repositories/job_repository.dart';
 import 'features/job/domain/usecases/get_jobs_usecase.dart';
+import 'features/job/domain/usecases/create_job_usecase.dart';
 import 'features/job/presentation/manager/job_bloc.dart';
 import 'features/notifications/data/datasources/notification_remote_datasource.dart';
 import 'features/notifications/data/repositories/notification_repository_impl.dart';
@@ -37,6 +38,7 @@ import 'features/profile/data/datasources/profile_remote_datasource.dart';
 import 'features/profile/data/repositories/profile_repository_impl.dart';
 import 'features/profile/domain/repositories/profile_repository.dart';
 import 'features/profile/domain/usecases/get_profile_usecase.dart';
+import 'features/profile/domain/usecases/update_profile_usecase.dart';
 import 'features/profile/presentation/manager/profile_bloc.dart';
 final sl = GetIt.instance;
 
@@ -128,15 +130,16 @@ Future<void> init() async {
   // Data Sources
   sl.registerLazySingleton(() => ApplicationRemoteDataSource(sl()));
   // Profile Feature
-  // Profile Feature
-  sl.registerFactory(() => ProfileBloc(getProfileUseCase: sl()));
+  sl.registerFactory(() => ProfileBloc(getProfileUseCase: sl(), updateProfileUseCase: sl()));
   sl.registerLazySingleton(() => GetProfileUseCase(sl()));
+  sl.registerLazySingleton(() => UpdateProfileUseCase(sl()));
   sl.registerLazySingleton<ProfileRepository>(() => ProfileRepositoryImpl(remoteDataSource: sl()));
-  sl.registerLazySingleton<ProfileRemoteDataSource>(() => ProfileRemoteDataSourceImpl(dio: sl()));
-  sl.registerFactory(() => JobBloc(getJobsUseCase: sl()));
+  sl.registerLazySingleton<ProfileRemoteDataSource>(() => ProfileRemoteDataSourceImpl(dio: sl<ApiClient>().dio));
+  sl.registerFactory(() => JobBloc(getJobsUseCase: sl(), createJobUseCase: sl()));
   sl.registerLazySingleton(() => GetJobsUseCase(sl()));
+  sl.registerLazySingleton(() => CreateJobUseCase(sl()));
   sl.registerLazySingleton<JobRepository>(() => JobRepositoryImpl(remoteDataSource: sl()));
-  sl.registerLazySingleton<JobRemoteDataSource>(() => JobRemoteDataSourceImpl(dio: sl()));
+  sl.registerLazySingleton<JobRemoteDataSource>(() => JobRemoteDataSourceImpl(dio: sl<ApiClient>().dio));
   // External
   if (!sl.isRegistered<Dio>()) {
     sl.registerLazySingleton(() => Dio());

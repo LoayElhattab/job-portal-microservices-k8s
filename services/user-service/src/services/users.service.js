@@ -53,7 +53,7 @@ async function login({ email, password }) {
 
 async function getProfile(userId) {
   const result = await pool.query(
-    'SELECT id, name, email, role, created_at, updated_at FROM users WHERE id = $1',
+    'SELECT id, name, email, role, bio, skills, created_at, updated_at FROM users WHERE id = $1',
     [userId]
   );
 
@@ -67,4 +67,38 @@ async function getProfile(userId) {
   return { user: result.rows[0] };
 }
 
-module.exports = { register, login, getProfile };
+async function updateProfile(userId, { name, bio, skills }) {
+  const allowed = ['name', 'bio', 'skills'];
+  const updates = [];
+  const values = [];
+
+  for (const key of allowed) {
+    if (key === 'name' && name !== undefined) {
+      values.push(name);
+      updates.push(`name = $${values.length}`);
+    }
+    if (key === 'bio' && bio !== undefined) {
+      values.push(bio);
+      updates.push(`bio = $${values.length}`);
+    }
+    if (key === 'skills' && skills !== undefined) {
+      values.push(skills);
+      updates.push(`skills = $${values.length}`);
+    }
+  }
+
+  if (updates.length === 0) {
+    const profile = await getProfile(userId);
+    return profile.user;
+  }
+
+  values.push(new Date(), userId);
+  const result = await pool.query(
+    `UPDATE users SET ${updates.join(', ')}, updated_at = $${values.length - 1} WHERE id = $${values.length} RETURNING id, name, email, role, bio, skills, created_at, updated_at`,
+    values
+  );
+
+  return result.rows[0];
+}
+
+module.exports = { register, login, getProfile, updateProfile };
