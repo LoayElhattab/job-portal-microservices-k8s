@@ -1,0 +1,11 @@
+FROM node:20-alpine
+WORKDIR /app
+RUN apk add --no-cache curl
+COPY package.json ./
+RUN npm install
+COPY src/ ./src/
+COPY rabbitmq/ ./rabbitmq/
+EXPOSE 3002
+HEALTHCHECK --interval=10s --timeout=5s --retries=5 --start-period=10s \
+  CMD curl -fsS http://localhost:3002/health || exit 1
+CMD ["node", "src/index.js"]

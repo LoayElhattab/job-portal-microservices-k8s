@@ -1,0 +1,6 @@
+aws_region   = "us-east-1"
+environment  = "dev"
+project_name = "jobportal"
+cluster_name = "jobportal-dev"
+
+# Interview talking point: set multi_az = true in rds.tf for production RDS.

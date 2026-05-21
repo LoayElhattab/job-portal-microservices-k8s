@@ -1,0 +1,38 @@
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../domain/usecases/get_profile_usecase.dart';
+import '../../domain/usecases/update_profile_usecase.dart';
+import 'profile_event.dart';
+import 'profile_state.dart';
+
+class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
+  final GetProfileUseCase getProfileUseCase;
+  final UpdateProfileUseCase updateProfileUseCase;
+
+  ProfileBloc({
+    required this.getProfileUseCase,
+    required this.updateProfileUseCase,
+  }) : super(ProfileInitial()) {
+    on<GetProfileEvent>((event, emit) async {
+      emit(ProfileLoading());
+
+      // استدعاء الـ UseCase الذي يكلم الـ Repository
+      final result = await getProfileUseCase();
+
+      result.fold(
+            (failure) => emit(const ProfileError(message: 'ERROR')),
+            (profile) => emit(ProfileLoaded(profile: profile)),
+      );
+    });
+
+    on<UpdateProfileEvent>((event, emit) async {
+      emit(ProfileLoading());
+
+      final result = await updateProfileUseCase(event.name, event.bio, event.skills);
+
+      result.fold(
+            (failure) => emit(const ProfileError(message: 'Failed to update profile')),
+            (profile) => emit(ProfileLoaded(profile: profile)),
+      );
+    });
+  }
+}

@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+  namespace: jobportal-prod
+  labels:
+    app: jobportal
+    component: notification-service
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: notification-service
+  template:
+    metadata:
+      labels:
+        app: notification-service
+        component: backend
+    spec:
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for PostgreSQL to be ready..."
+              until nc -z postgres 5432; do
+                echo "PostgreSQL is not ready yet. Retrying in 2s..."
+                sleep 2
+              done
+              echo "PostgreSQL is ready!"
+        - name: wait-for-rabbitmq
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for RabbitMQ to be ready..."
+              until nc -z rabbitmq 5672; do
+                echo "RabbitMQ is not ready yet. Retrying in 2s..."
+                sleep 2
+              done
+              echo "RabbitMQ is ready!"
+      containers:
+        - name: notification-service
+          image: jobportal/notification-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 3003
+              name: http
+          envFrom:
+            - configMapRef:
+                name: jobportal-config
+            - secretRef:
+                name: jobportal-secrets
+          env:
+            - name: SERVICE_NAME
+              value: "notification-service"
+            - name: SERVICE_PORT
+              value: "3003"
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: jobportal-config
+                  key: NOTIFICATION_SERVICE_DB
+            - name: RABBITMQ_EXCHANGE
+              value: "application_events"
+            - name: RABBITMQ_QUEUE
+              value: "notification_queue"
+            - name: RABBITMQ_ROUTING_KEY
+              value: "application.*"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3003
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3003
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"

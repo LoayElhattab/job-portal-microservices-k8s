@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service
+  namespace: jobportal-prod
+  labels:
+    app: jobportal
+    component: notification-service
+spec:
+  type: ClusterIP
+  selector:
+    app: notification-service
+  ports:
+    - port: 3003
+      targetPort: 3003
+      name: http

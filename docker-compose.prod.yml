@@ -1,1 +1,214 @@
-version: '3.9'
+name: jobportal-prod
+
+networks:
+  jobportal-prod-network:
+    driver: bridge
+
+volumes:
+  postgres-prod-data:
+
+x-service-env: &service-env
+  NODE_ENV: production
+  JWT_SECRET: ${JWT_SECRET:-change-me-to-a-64-char-hex-string}
+  DB_HOST: postgres-prod
+  DB_PORT: 5432
+  DB_USER: ${DB_USER:-jobportal}
+  DB_PASSWORD: ${DB_PASSWORD:-jobportal_prod_password_change_me}
+  USER_SERVICE_DB: ${USER_SERVICE_DB:-user_db}
+  JOB_SERVICE_DB: ${JOB_SERVICE_DB:-job_db}
+  APPLICATION_SERVICE_DB: ${APPLICATION_SERVICE_DB:-application_db}
+  NOTIFICATION_SERVICE_DB: ${NOTIFICATION_SERVICE_DB:-notification_db}
+  RABBITMQ_URL: amqp://${RABBITMQ_USER:-jobportal}:${RABBITMQ_PASS:-jobportal_prod_password_change_me}@rabbitmq-prod:5672
+
+services:
+  app:
+    build:
+      context: ./app
+    image: jobportal/app:prod
+    container_name: app-prod
+    ports:
+      - "3305:80"
+    environment:
+      GATEWAY_URL: http://localhost:3300/api/v1
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1/health >/dev/null || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - jobportal-prod-network
+    restart: unless-stopped
+
+  gateway:
+    build:
+      context: ./gateway
+      args:
+        ENVIRONMENT: prod
+    image: jobportal/gateway:prod
+    container_name: gateway-prod
+    ports:
+      - "3300:80"
+    depends_on:
+      app:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+      job-service:
+        condition: service_healthy
+      application-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+    networks:
+      - jobportal-prod-network
+    restart: unless-stopped
+
+  user-service:
+    build:
+      context: ./services/user-service
+      dockerfile: Dockerfile.prod
+    image: jobportal/user-service:prod
+    container_name: user-service-prod
+    ports:
+      - "3301:3000"
+    environment:
+      <<: *service-env
+      PORT: 3000
+      DB_NAME: ${USER_SERVICE_DB:-user_db}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "node -e \"require('http').get('http://127.0.0.1:3000/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\"" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - jobportal-prod-network
+    restart: unless-stopped
+
+  job-service:
+    build:
+      context: ./services/job-service
+      dockerfile: Dockerfile.prod
+    image: jobportal/job-service:prod
+    container_name: job-service-prod
+    ports:
+      - "3302:3001"
+    environment:
+      <<: *service-env
+      PORT: 3001
+      DB_NAME: ${JOB_SERVICE_DB:-job_db}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "node -e \"require('http').get('http://127.0.0.1:3001/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\"" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - jobportal-prod-network
+    restart: unless-stopped
+
+  application-service:
+    build:
+      context: ./services/application-service
+      dockerfile: Dockerfile.prod
+    image: jobportal/application-service:prod
+    container_name: application-service-prod
+    ports:
+      - "3303:3002"
+    environment:
+      <<: *service-env
+      PORT: 3002
+      DB_NAME: ${APPLICATION_SERVICE_DB:-application_db}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "node -e \"require('http').get('http://127.0.0.1:3002/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\"" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - jobportal-prod-network
+    restart: unless-stopped
+
+  notification-service:
+    build:
+      context: ./services/notification-service
+      dockerfile: Dockerfile.prod
+    image: jobportal/notification-service:prod
+    container_name: notification-service-prod
+    ports:
+      - "3304:3003"
+    environment:
+      <<: *service-env
+      PORT: 3003
+      DB_NAME: ${NOTIFICATION_SERVICE_DB:-notification_db}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "node -e \"require('http').get('http://127.0.0.1:3003/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\"" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - jobportal-prod-network
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres-prod
+    ports:
+      - "3310:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-jobportal}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-jobportal_prod_password_change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    volumes:
+      - postgres-prod-data:/var/lib/postgresql/data
+      - ./infrastructure/databases/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    networks:
+      - jobportal-prod-network
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: rabbitmq-prod
+    ports:
+      - "3311:5672"
+      - "3312:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-jobportal}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-jobportal_prod_password_change_me}
+    healthcheck:
+      test: [ "CMD-SHELL", "rabbitmq-diagnostics -q ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - jobportal-prod-network
+    restart: unless-stopped

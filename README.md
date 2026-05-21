@@ -1,871 +1,590 @@
-# System Design & API Specification
+# Job Portal Microservices Platform
 
-## Job Portal Microservices Platform
+## Overview
 
----
+This repository implements a containerized job portal platform with a Flutter web frontend, an Nginx API gateway, four independently owned Node.js microservices, PostgreSQL database isolation, RabbitMQ event messaging, Prometheus metrics, Grafana dashboards, Docker Compose environments, Kubernetes manifests, and GitHub Actions validation.
 
-## Table of Contents
+This platform has been overhauled to support both local execution (via Docker Compose and Minikube) and enterprise-grade cloud deployment on Amazon Web Services (AWS) using Infrastructure as Code (Terraform). The entire software delivery lifecycle is protected by robust DevSecOps pipelines executing Static Application Security Testing (SAST), Software Composition Analysis (SCA), and Infrastructure as Code (IaC) compliance scanning.
 
-1. [System Architecture & Component Mapping](https://www.notion.so/Cloud-Project-Documenation-353a465a2736800781b0fda2bb0feab0?pvs=21)
-2. [Networking Schema](https://www.notion.so/Cloud-Project-Documenation-353a465a2736800781b0fda2bb0feab0?pvs=21)
-3. [API Contract](https://www.notion.so/Cloud-Project-Documenation-353a465a2736800781b0fda2bb0feab0?pvs=21)
-4. [Infrastructure & DevOps Blueprint](https://www.notion.so/Cloud-Project-Documenation-353a465a2736800781b0fda2bb0feab0?pvs=21)
-5. [Rubric Compliance Matrix](https://www.notion.so/Cloud-Project-Documenation-353a465a2736800781b0fda2bb0feab0?pvs=21)
+The project is organized to demonstrate production-style microservice boundaries while still being runnable locally through Docker Compose and Minikube, or fully deployed as a resilient cloud platform on AWS.
 
----
+## System Capabilities
 
-## 1. System Architecture & Component Mapping
+| Capability | Implementation |
+| --- | --- |
+| User accounts | Registration, login, JWT authentication, and profile lookup through `user-service`. |
+| Job marketplace | Employers create, update, and delete jobs; seekers and guests browse jobs through `job-service`. |
+| Applications | Seekers apply for jobs and employers review application status through `application-service`. |
+| Notifications | Application events create user notifications asynchronously through `notification-service`. |
+| Web client | Flutter web app served by Nginx and configured at runtime through `env.json`. |
+| Gateway routing | Nginx exposes one public HTTP entry point and routes `/api/v1/*` traffic to the owning service. |
+| Metrics | Each backend exposes `/metrics`; Prometheus scrapes service metrics and Grafana provisions dashboards. |
+| Orchestration | Docker Compose covers dev, test, and prod-like local stacks; Kubernetes manifests cover cluster deployment. |
+| Cloud Infrastructure | Automated AWS VPC, private Amazon EKS (Elastic Kubernetes Service) clusters, and Amazon RDS PostgreSQL instances provisioned securely via Terraform. |
+| DevSecOps | Automated static analysis (Semgrep SAST), container and dependency scanning (Trivy), and Cloud Security Posture Management / IaC linting (Checkov) integrated in GitHub Actions pipelines. |
 
-### 1.1 Microservices Breakdown
+## Architecture & Routing
 
-| # | Service | Responsibility | Tech Stack |
-| --- | --- | --- | --- |
-| 1 | **User Service** | Registration, Login (JWT), Profile CRUD | Node.js + Express |
-| 2 | **Job Service** | Job Posting CRUD, Search/Filter | Node.js + Express |
-| 3 | **Application Service** | Submit Application, Status Tracking, publishes events to RabbitMQ | Node.js + Express |
-| 4 | **Notification Service** | Consumes RabbitMQ events, stores & serves notifications | Node.js + Express |
-| — | **API Gateway** | Reverse proxy, route mapping, CORS | Nginx |
+Client traffic enters through the gateway, which forwards each public route to the service that owns the capability.
 
-### 1.2 Data Ownership (Database-per-Service)
-
-Each service owns its data via a **logically isolated database** inside a single PostgreSQL container.
-
-| Service | Database Name | Key Tables |
+| Public route | Owning service | Internal port |
 | --- | --- | --- |
-| User Service | `user_db` | `users` |
-| Job Service | `job_db` | `jobs` |
-| Application Service | `application_db` | `applications` |
-| Notification Service | `notification_db` | `notifications` |
+| `/api/v1/users/` | `user-service` | `3000` |
+| `/api/v1/jobs/` | `job-service` | `3001` |
+| `/api/v1/applications/` | `application-service` | `3002` |
+| `/api/v1/notifications/` | `notification-service` | `3003` |
 
-**PostgreSQL Init Script** (`infra/init-databases.sql`):
+Each backend service exposes:
 
-```sql
--- Executed by the postgres container on first boot
-CREATE DATABASE user_db;
-CREATE DATABASE job_db;
-CREATE DATABASE application_db;
-CREATE DATABASE notification_db;
-```
+| Endpoint | Purpose |
+| --- | --- |
+| `/health` | Container, Compose, Kubernetes, and smoke-test health checks. |
+| `/metrics` | Prometheus metrics for request rate, duration, process CPU, and memory. |
+| `/api/v1/...` | Service-owned REST API routes. |
 
-### 1.3 Communication Flow
+## Cloud Infrastructure & Security
 
-### Synchronous Path (HTTP/REST)
+The platform utilizes AWS Infrastructure as Code (IaC) located under `infrastructure/terraform/`. The design adheres to AWS Well-Architected guidelines, prioritizing security, isolation, and micro-segmentation.
 
-```
-Flutter App ──HTTPS──> Nginx Gateway ──HTTP──> target-service:PORT/api/v1/...
-```
+### Network Architecture
+- **VPC Configuration**: Managed Virtual Private Cloud (VPC) with a CIDR block of `10.0.0.0/16` spanning multiple Availability Zones (AZs) for high availability.
+- **Subnet Segmentation**: 
+  - **Public Subnets**: Host the NAT Gateway and Internet Gateway, providing secure outbound routing.
+  - **Private Subnets**: EKS nodes, pods, and the Amazon RDS PostgreSQL instance are placed in private subnets, completely isolated from direct public internet exposure.
 
-### Asynchronous Path (RabbitMQ)
+### Compute Infrastructure
+- **Amazon EKS**: Managed Kubernetes cluster version `1.29` provisioned in the private subnets.
+- **Managed Node Groups**: Run in private subnets, scaling dynamically based on load.
+- **Security & Instance Hardening**: EC2 worker nodes utilize a custom launch template enforcing IMDSv2 (`http_tokens = "required"`) and encrypting local EBS volumes at rest.
 
-```
-Application Service ──publish──> RabbitMQ [application_events] ──consume──> Notification Service
-```
+### Data Layer & Security Controls
+- **Amazon RDS**: Managed PostgreSQL instance in private subnets with public access disabled (`publicly_accessible = false`).
+- **Security Group Micro-segmentation**: Strict ingress rules limit access to the RDS database. Only traffic originating from the EKS nodes security group is allowed on port `5432`.
+- **Encryption at Rest**: AWS Key Management Service (KMS) is integrated to handle transparent encryption at rest for the RDS database (`storage_encrypted = true`) and EKS node volumes.
 
-**Events Published:**
+## Services, Asynchronous Messaging, & Data Ownership
 
-| Event Name | Payload | Trigger |
-| --- | --- | --- |
-| `application.submitted` | `{ applicationId, jobId, seekerId, employerId }` | Seeker submits application |
-| `application.status_changed` | `{ applicationId, seekerId, newStatus }` | Employer updates status |
-
-### 1.4 System Architecture Diagram
-
-```mermaid
-graph TB
-    subgraph Client
-        A["Flutter Mobile App"]
-    end
-
-    subgraph "Linux Host Machine"
-        subgraph "Docker / Kubernetes Cluster"
-            GW["Nginx API Gateway<br/>:80"]
-
-            subgraph "Core Services"
-                US["User Service<br/>:3000"]
-                JS["Job Service<br/>:3001"]
-                AS["Application Service<br/>:3002"]
-                NS["Notification Service<br/>:3003"]
-            end
-
-            subgraph "Data Layer"
-                PG["PostgreSQL<br/>4 Logical DBs"]
-                RMQ["RabbitMQ<br/>:5672 / :15672"]
-            end
-
-            subgraph "Monitoring Stack"
-                PROM["Prometheus<br/>:9090"]
-                GRAF["Grafana<br/>:3100"]
-            end
-        end
-    end
-
-    A -->|"HTTPS"| GW
-    GW -->|"/api/v1/users/**"| US
-    GW -->|"/api/v1/jobs/**"| JS
-    GW -->|"/api/v1/applications/**"| AS
-    GW -->|"/api/v1/notifications/**"| NS
-
-    US --> PG
-    JS --> PG
-    AS --> PG
-    NS --> PG
-
-    AS -->|"Publish Event"| RMQ
-    RMQ -->|"Consume Event"| NS
-
-    PROM -->|"Scrape /metrics"| US
-    PROM -->|"Scrape /metrics"| JS
-    PROM -->|"Scrape /metrics"| AS
-    PROM -->|"Scrape /metrics"| NS
-    GRAF -->|"Query"| PROM
-```
-
----
-
-## 2. Networking Schema
-
-### 2.1 Simultaneous Environment Strategy
-
-**Approach:** Three separate `docker-compose.<env>.yml` files, each defining its own **isolated Docker network** and a **unique host-port range**.
-
-| File | Network Name | Port Range | Purpose |
+### Services
+| Service | Path | Responsibility | Database |
 | --- | --- | --- | --- |
-| `docker-compose.dev.yml` | `jobportal-dev` | `3100–3199` | Hot-reload, debug logs |
-| `docker-compose.test.yml` | `jobportal-test` | `3200–3299` | Integration/E2E tests |
-| `docker-compose.prod.yml` | `jobportal-prod` | `3300–3399` | Optimized production build |
+| User service | `services/user-service` | Register users, authenticate credentials, issue JWTs, return current profile. | `user_db` |
+| Job service | `services/job-service` | Create jobs, list/search jobs, fetch one job, update owned jobs, soft-delete jobs. | `job_db` |
+| Application service | `services/application-service` | Create applications, enforce duplicate protection, list role-specific applications, update status. | `application_db` |
+| Notification service | `services/notification-service` | Consume application events and expose paginated notifications for the current user. | `notification_db` |
 
-**Launch commands (can run simultaneously):**
+The services share infrastructure, but they do not share application tables. Cross-service references are stored as UUID values instead of database joins.
+
+### Asynchronous Messaging
+RabbitMQ decouples application writes from notification delivery.
+
+| Producer | Consumer | Exchange | Type | Routing keys |
+| --- | --- | --- | --- | --- |
+| `application-service` | `notification-service` | `application_events` | `topic` | `application.submitted`, `application.status_changed` |
+
+The producer lives in `services/application-service/rabbitmq/publisher.js`. The consumer lives in `services/notification-service/rabbitmq/consumer.js`. This means `application-service` can persist the application or status change, publish an event, and return the API response while `notification-service` handles notification creation independently.
+
+### Data Ownership
+PostgreSQL runs as one shared infrastructure instance per environment, but each service owns a separate logical database.
+
+| Database | Owner | Initialized by |
+| --- | --- | --- |
+| `user_db` | `user-service` | `infrastructure/databases/init-databases.sql` (Local Compose) / `infrastructure/terraform/k8s/rds-init-job.yaml` (AWS RDS) |
+| `job_db` | `job-service` | `infrastructure/databases/init-databases.sql` (Local Compose) / `infrastructure/terraform/k8s/rds-init-job.yaml` (AWS RDS) |
+| `application_db` | `application-service` | `infrastructure/databases/init-databases.sql` (Local Compose) / `infrastructure/terraform/k8s/rds-init-job.yaml` (AWS RDS) |
+| `notification_db` | `notification-service` | `infrastructure/databases/init-databases.sql` (Local Compose) / `infrastructure/terraform/k8s/rds-init-job.yaml` (AWS RDS) |
+
+Each service runs its own startup migration so tables are created by the code that owns them.
+
+## Repository Layout
+
+| Path | Purpose |
+| --- | --- |
+| `app/` | Flutter web application with Clean Architecture-style features, BLoC state management, and runtime API config. |
+| `gateway/` | Nginx Docker image and environment-specific routing configs for dev, test, prod, and Kubernetes. |
+| `services/` | Node.js backend services, one folder per bounded context. |
+| `infrastructure/databases/` | Shared PostgreSQL initialization script that creates the service databases for local deployment. |
+| `infrastructure/monitoring/` | Prometheus scrape config and Grafana dashboard/datasource provisioning. |
+| `infrastructure/scripts/` | Helper scripts for starting or stopping all local Compose environments and delegating Kubernetes deployment. |
+| `infrastructure/terraform/` | Terraform modules for provisioning VPC networking, IAM policies, RDS instance, EKS cluster, and Node Groups. |
+| `k8s/` | Kubernetes namespace, config, secrets, infrastructure, service, frontend, gateway, and monitoring manifests. |
+| `docs/` | API, architecture, deployment, setup, and internal blueprint documentation. |
+| `.github/workflows/` | GitHub Actions workflow definitions executing build, test, and security validations (Semgrep SAST, Trivy vulnerability scans, Checkov IaC posture checks, E2E Compose integration). |
+
+### Documentation Map
+
+| Document | Purpose |
+| --- | --- |
+| `docs/api.md` | Public API envelope, authentication model, routes, roles, pagination, and RabbitMQ event contract. |
+| `docs/architecture.md` | Service boundaries, routing, async flow, data ownership, observability, and compliance mapping. |
+| `docs/setup.md` | Local prerequisites, environment setup, Compose commands, ports, and shared environment variables. |
+| `docs/deployment.md` | Minikube workflow, image builds, manifest order, NodePort access, and validation commands. |
+| `docs/master-blueprint.md` | File-by-file platform reference for backend, infrastructure, orchestration, CI, and docs. |
+
+## Local Prerequisites & Environment Files
+
+### Local Prerequisites
+Install the following dependencies for local execution:
+
+| Tool | Purpose |
+| --- | --- |
+| Docker with Compose | Run local dev, test, and prod-like stacks. |
+| Node.js and npm | Run backend service tests outside containers if desired. |
+| Flutter SDK | Run or test the web app outside containers if desired. |
+| Minikube and `kubectl` | Validate Kubernetes deployment locally. |
+| Git Bash or a POSIX shell | Run the included `.sh` helper scripts on Windows. |
+
+### Environment Files
+Copy the examples before first use:
 
 ```bash
-# Terminal 1 — Dev
-docker-compose -f docker-compose.dev.yml -p jobportal-dev up -d
-
-# Terminal 2 — Test
-docker-compose -f docker-compose.test.yml -p jobportal-test up -d
-
-# Terminal 3 — Prod
-docker-compose -f docker-compose.prod.yml -p jobportal-prod up -d
+cp .env.dev.example .env.dev
+cp .env.test.example .env.test
+cp .env.prod.example .env.prod
 ```
 
-### 2.2 Port Map Table
+The environment files define:
 
-| Service | Internal Port | Dev (Host) | Test (Host) | Prod (Host) |
-| --- | --- | --- | --- | --- |
-| **Nginx Gateway** | 80 | 3100 | 3200 | 3300 |
-| **User Service** | 3000 | 3101 | 3201 | 3301 |
-| **Job Service** | 3001 | 3102 | 3202 | 3302 |
-| **Application Service** | 3002 | 3103 | 3203 | 3303 |
-| **Notification Service** | 3003 | 3104 | 3204 | 3304 |
-| **PostgreSQL** | 5432 | 3110 | 3210 | 3310 |
-| **RabbitMQ (AMQP)** | 5672 | 3111 | 3211 | 3311 |
-| **RabbitMQ (Mgmt UI)** | 15672 | 3112 | 3212 | 3312 |
-| **Prometheus** | 9090 | 3120 | 3220 | 3320 |
-| **Grafana** | 3000 | 3121 | 3221 | 3321 |
+| Variable group | Purpose |
+| --- | --- |
+| `JWT_SECRET` | Shared JWT signing and validation secret for all backend services. |
+| `DB_*` | Database host, port, user, and password used by service containers. |
+| `*_SERVICE_DB` | Logical database names for each service boundary. |
+| `POSTGRES_*` | PostgreSQL container bootstrap credentials and default database. |
+| `RABBITMQ_*` | RabbitMQ credentials and AMQP connection URL for async messaging. |
+| `GF_SECURITY_*` | Grafana admin credentials for the development monitoring stack. |
 
-### 2.3 DNS / Service Discovery Strategy
+## Running Locally (Docker Compose)
 
-Within each Docker Compose project, services discover each other by **container name**. Environment is embedded in the container/service name:
+### Development Environment
+Development uses `docker-compose.dev.yml`. Backend services use `Dockerfile.dev`, run with `nodemon`, and mount source folders read-only for local iteration.
 
-| Service | Dev Container Name | Test Container Name | Prod Container Name |
+Start development:
+```bash
+docker compose -f docker-compose.dev.yml -p jobportal-dev up -d --build
+```
+
+Stop development:
+```bash
+docker compose -f docker-compose.dev.yml -p jobportal-dev down
+```
+
+Recreate the development database volume if an older local schema conflicts with current migrations:
+```bash
+docker compose -f docker-compose.dev.yml -p jobportal-dev down -v
+docker compose -f docker-compose.dev.yml -p jobportal-dev up -d --build
+```
+
+#### Development Ports
+| Component | URL |
+| --- | --- |
+| Gateway | `http://localhost:3100` |
+| Flutter app | `http://localhost:3105` |
+| User service | `http://localhost:3101` |
+| Job service | `http://localhost:3102` |
+| Application service | `http://localhost:3103` |
+| Notification service | `http://localhost:3104` |
+| PostgreSQL | `localhost:3110` |
+| RabbitMQ AMQP | `localhost:3111` |
+| RabbitMQ Management | `http://localhost:3112` |
+| Prometheus | `http://localhost:3120` |
+| Grafana | `http://localhost:3121` |
+
+### Testing Environment
+Testing uses `docker-compose.test.yml`. It builds services from production Dockerfiles and runs on isolated container names, networks, volumes, and host ports.
+
+Start testing:
+```bash
+docker compose -f docker-compose.test.yml -p jobportal-test up -d --build
+```
+
+Stop testing:
+```bash
+docker compose -f docker-compose.test.yml -p jobportal-test down
+```
+
+#### Testing Ports
+| Component | URL |
+| --- | --- |
+| Gateway | `http://localhost:3200` |
+| Flutter app | `http://localhost:3205` |
+| User service | `http://localhost:3201` |
+| Job service | `http://localhost:3202` |
+| Application service | `http://localhost:3203` |
+| Notification service | `http://localhost:3204` |
+| PostgreSQL | `localhost:3210` |
+| RabbitMQ AMQP | `localhost:3211` |
+| RabbitMQ Management | `http://localhost:3212` |
+
+### Production-Style Compose Environment
+Production Compose uses `docker-compose.prod.yml`. It builds production images, runs on its own network and volumes, and exposes a separate local port range.
+
+Start production-style Compose:
+```bash
+docker compose -f docker-compose.prod.yml -p jobportal-prod up -d --build
+```
+
+Stop production-style Compose:
+```bash
+docker compose -f docker-compose.prod.yml -p jobportal-prod down
+```
+
+#### Production Compose Ports
+| Component | URL |
+| --- | --- |
+| Gateway | `http://localhost:3300` |
+| Flutter app | `http://localhost:3305` |
+| User service | `http://localhost:3301` |
+| Job service | `http://localhost:3302` |
+| Application service | `http://localhost:3303` |
+| Notification service | `http://localhost:3304` |
+| PostgreSQL | `localhost:3310` |
+| RabbitMQ AMQP | `localhost:3311` |
+| RabbitMQ Management | `http://localhost:3312` |
+
+### Running All Compose Environments
+The three Compose environments can run at the same time because they use separate projects, networks, containers, volumes, and host ports.
+
+| Environment | Gateway | App | Services | PostgreSQL | RabbitMQ | Monitoring |
+| --- | --- | --- | --- | --- | --- | --- |
+| Development | `3100` | `3105` | `3101-3104` | `3110` | `3111-3112` | `3120-3121` |
+| Testing | `3200` | `3205` | `3201-3204` | `3210` | `3211-3212` | Not enabled |
+| Production Compose | `3300` | `3305` | `3301-3304` | `3310` | `3311-3312` | Not enabled |
+
+Start all environments:
+```bash
+./infrastructure/scripts/start-all.sh
+```
+
+Stop all environments:
+```bash
+./infrastructure/scripts/stop-all.sh
+```
+
+## Kubernetes Deployment (Minikube)
+
+Kubernetes manifests in `k8s/` deploy the same platform shape used by Compose:
+
+1. Namespace.
+2. ConfigMap and Secret.
+3. PostgreSQL and RabbitMQ.
+4. Backend services.
+5. Flutter web app and gateway.
+6. Prometheus and Grafana monitoring.
+
+Start Minikube:
+```bash
+minikube start
+```
+
+Use the Minikube Docker daemon before building local images:
+```bash
+eval "$(minikube docker-env)"
+```
+
+Build the images expected by the manifests:
+```bash
+docker build -t jobportal/user-service:latest ./services/user-service
+docker build -t jobportal/job-service:latest ./services/job-service
+docker build -t jobportal/application-service:latest ./services/application-service
+docker build -t jobportal/notification-service:latest ./services/notification-service
+docker build -t jobportal/app:latest ./app
+docker build -t jobportal/gateway:latest ./gateway
+```
+
+Apply the platform:
+```bash
+./k8s/apply-all.sh
+```
+
+The gateway is exposed as a NodePort:
+
+| Field | Value |
+| --- | --- |
+| Service | `k8s/gateway/service.yml` |
+| Type | `NodePort` |
+| Service port | `80` |
+| NodePort | `30080` |
+
+Open the app through Minikube:
+```bash
+http://$(minikube ip):30080
+```
+
+## AWS Terraform Deployment
+
+To deploy production-grade infrastructure on AWS, use the Terraform modules defined in `infrastructure/terraform/`.
+
+### Deployment Lifecycle
+Navigate to the directory:
+```bash
+cd infrastructure/terraform
+```
+
+Initialize the backend and provider plugins:
+```bash
+terraform init
+```
+
+Validate the syntactical correctness of the configurations:
+```bash
+terraform validate
+```
+
+Generate and save the execution plan:
+```bash
+terraform plan -out=tfplan
+```
+
+Apply the configuration to provision resources in AWS:
+```bash
+terraform apply tfplan
+```
+
+### Contextual Integration with Kubernetes
+Following a successful `terraform apply`, retrieve the outputs needed to configure the Kubernetes deployments inside EKS:
+
+1. **Kubeconfig Alignment**: Configure your local terminal to interact with the new cluster:
+   ```bash
+   aws eks update-kubeconfig --region us-east-1 --name $(terraform output -raw eks_cluster_name)
+   ```
+2. **Access Output Variables**: Retrieve the RDS database endpoint, master user, and generated sensitive password:
+   ```bash
+   # Retrieve database host endpoint
+   terraform output -raw rds_endpoint
+
+   # Retrieve master username
+   terraform output -raw rds_username
+
+   # Retrieve RDS master password (sensitive)
+   terraform output -raw rds_password
+   ```
+3. **Apply Configuration in Cluster**: Set up the production ConfigMap and Secret inside the EKS cluster using the retrieved outputs:
+   ```bash
+   # Create Kubernetes Secrets with the sensitive RDS password and JWT secret
+   kubectl create secret generic jobportal-secrets \
+     --from-literal=DB_PASSWORD="<RETRIEVED_RDS_PASSWORD>" \
+     --from-literal=JWT_SECRET="<YOUR_PRODUCTION_JWT_SECRET>" \
+     -n jobportal-prod
+
+   # Create ConfigMap with the non-sensitive RDS endpoint details
+   kubectl create configmap jobportal-config \
+     --from-literal=DB_HOST="<RETRIEVED_RDS_ENDPOINT>" \
+     --from-literal=DB_PORT="5432" \
+     --from-literal=DB_USER="jobportal" \
+     -n jobportal-prod
+   ```
+4. **Initialize logical databases on RDS**: Execute the database initialization Job inside the EKS cluster. This job boots a transient PostgreSQL container inside the VPC to provision logical database schemas:
+   ```bash
+   kubectl apply -f infrastructure/terraform/k8s/rds-init-job.yaml -n jobportal-prod
+   ```
+
+### Production Upgrades
+For cost savings during development, the default Terraform variables are sized minimally. For production rollouts, upgrade the parameters as detailed in the matrix below:
+
+| Feature / Variable | Development / Staging Default | Production Target | Architectural Rationale |
 | --- | --- | --- | --- |
-| User Service | `user-service-dev` | `user-service-test` | `user-service-prod` |
-| Job Service | `job-service-dev` | `job-service-test` | `job-service-prod` |
-| Application Service | `app-service-dev` | `app-service-test` | `app-service-prod` |
-| Notification Service | `notif-service-dev` | `notif-service-test` | `notif-service-prod` |
-| PostgreSQL | `postgres-dev` | `postgres-test` | `postgres-prod` |
-| RabbitMQ | `rabbitmq-dev` | `rabbitmq-test` | `rabbitmq-prod` |
+| RDS High Availability | `multi_az = false` | `multi_az = true` | Deploys synchronous secondary replicas across multiple Availability Zones for zero-data-loss failover. |
+| RDS Instance Scaling | `db.t4g.micro` | `db.r6g.large` (or larger) | Memory-optimized instance classes suitable for high-throughput, latency-critical relational databases. |
+| Storage Autoscaling | Fixed 20GB size | Enabled scaling up to 1000GB | Allows dynamic storage expansion to prevent database crashes when disk capacity is exhausted. |
+| RDS Deletion Protection | `deletion_protection = false` | `deletion_protection = true` | Adds a safety layer preventing the database instance from being accidentally terminated during Terraform sweeps. |
+| Secrets Management | Kubernetes Secrets | AWS Secrets Manager + External Secrets Operator | Enables automated secret rotation, compliance audits, and tight integration with AWS KMS. |
+| EKS API Control Plane | `endpoint_public_access = true` | `endpoint_public_access = false` | Restricts EKS cluster management interface to the private network. Requires VPN or Bastion for administrative access. |
+| Public Traffic Routing | Service NodePort | AWS Load Balancer Controller (ALB Ingress) | Integrates AWS Application Load Balancer for automated SSL/TLS termination, WAF protection, and routing. |
+| Key Management | AWS Managed Keys | Customer Managed Keys (CMK) in KMS | Grants granular control over key rotation policy, resource access tracking, and security audits. |
 
-**Nginx upstream example** (`nginx/nginx.conf`):
+## API Contract Snapshot
 
-```
-upstream user_service {
-    server user-service-dev:3000;  # name changes per env
-}
-```
+All public APIs are exposed through the gateway under `/api/v1`.
 
-**Kubernetes:** In K8s, each service gets a `ClusterIP` Service object. Discovery uses: `<service-name>.<namespace>.svc.cluster.local`
-
-Example: `user-service.jobportal-prod.svc.cluster.local:3000`
-
----
-
-## 3. API Contract
-
-### 3.1 Global Conventions
-
-| Convention | Value |
-| --- | --- |
-| Base Path | `/api/v1` |
-| Content-Type | `application/json` |
-| Auth Header | `Authorization: Bearer <JWT>` |
-| Success Envelope | `{ "success": true, "data": { ... } }` |
-| Error Envelope | `{ "success": false, "error": { "code": "ERROR_CODE", "message": "..." } }` |
-| Pagination | `?page=1&limit=20` → Response includes `meta: { page, limit, total }` |
-
-### 3.2 JWT Implementation
-
-**Token Generation:** User Service issues JWT on login/register.
-
-**Algorithm:** `HS256`
-
-**Expiry:** `24h`
-
-**JWT Payload (Claims):**
-
-```json
-{
-  "userId": "uuid-string",
-  "email": "user@example.com",
-  "role": "seeker | employer",
-  "iat": 1714520000,
-  "exp": 1714606400
-}
-```
-
-**Cross-Service Auth:** Every service validates the JWT independently using a **shared secret** (`JWT_SECRET` injected via environment variable / K8s Secret). No service-to-service auth tokens needed — only the gateway forwards the client's token.
-
-### 3.3 Auth Endpoints — User Service
-
-### `POST /api/v1/users/register`
-
-**Access:** Public
-
-**Request:**
-
-```json
-{
-  "name": "Ahmad Ali",
-  "email": "ahmad@example.com",
-  "password": "SecureP@ss1",
-  "role": "seeker"
-}
-```
-
-> `role` must be `"seeker"` or `"employer"`.
-> 
-
-**Response `201 Created`:**
-
+Success response envelope:
 ```json
 {
   "success": true,
-  "data": {
-    "user": {
-      "id": "a1b2c3d4-uuid",
-      "name": "Ahmad Ali",
-      "email": "ahmad@example.com",
-      "role": "seeker",
-      "createdAt": "2026-05-01T00:00:00Z"
-    },
-    "token": "eyJhbGciOiJIUzI1NiIs..."
-  }
+  "data": {},
+  "meta": {}
 }
 ```
 
-**Error `409 Conflict`:**
-
+Error response envelope:
 ```json
 {
   "success": false,
-  "error": { "code": "EMAIL_EXISTS", "message": "Email already registered." }
-}
-```
-
----
-
-### `POST /api/v1/users/login`
-
-**Access:** Public
-
-**Request:**
-
-```json
-{
-  "email": "ahmad@example.com",
-  "password": "SecureP@ss1"
-}
-```
-
-**Response `200 OK`:**
-
-```json
-{
-  "success": true,
-  "data": {
-    "user": {
-      "id": "a1b2c3d4-uuid",
-      "name": "Ahmad Ali",
-      "email": "ahmad@example.com",
-      "role": "seeker"
-    },
-    "token": "eyJhbGciOiJIUzI1NiIs..."
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "Human-readable message"
   }
 }
 ```
 
-**Error `401 Unauthorized`:**
+### Authentication
+| Method | Path | Auth | Role | Description |
+| --- | --- | --- | --- | --- |
+| `POST` | `/api/v1/users/register` | No | Any | Register a user with role `seeker` or `employer`. |
+| `POST` | `/api/v1/users/login` | No | Any | Authenticate and receive a JWT. |
+| `GET` | `/api/v1/users/profile` | Bearer JWT | `seeker` or `employer` | Return the current user's profile. |
 
-```json
-{
-  "success": false,
-  "error": { "code": "INVALID_CREDENTIALS", "message": "Email or password is incorrect." }
-}
-```
+### Jobs
+| Method | Path | Auth | Role | Description |
+| --- | --- | --- | --- | --- |
+| `POST` | `/api/v1/jobs` | Bearer JWT | `employer` | Create a job. |
+| `GET` | `/api/v1/jobs` | No | Any | List jobs with optional search and pagination filters. |
+| `GET` | `/api/v1/jobs/:id` | No | Any | Get one job by UUID. |
+| `PATCH` | `/api/v1/jobs/:id` | Bearer JWT | Owning `employer` | Update a job. |
+| `DELETE` | `/api/v1/jobs/:id` | Bearer JWT | Owning `employer` | Delete a job. |
 
----
+### Applications
+| Method | Path | Auth | Role | Description |
+| --- | --- | --- | --- | --- |
+| `POST` | `/api/v1/applications` | Bearer JWT | `seeker` | Apply for a job. |
+| `GET` | `/api/v1/applications` | Bearer JWT | `seeker` or `employer` | List applications visible to the current user. |
+| `PATCH` | `/api/v1/applications/:id/status` | Bearer JWT | Owning `employer` | Update application status. |
 
-### `GET /api/v1/users/profile`
+### Notifications
+| Method | Path | Auth | Role | Description |
+| --- | --- | --- | --- | --- |
+| `GET` | `/api/v1/notifications` | Bearer JWT | `seeker` or `employer` | List current user's notifications with pagination. |
 
-**Access:** Authenticated (any role)
+Full API details live in `docs/api.md`.
 
-**Headers:** `Authorization: Bearer <token>`
+## Observability
 
-**Response `200 OK`:**
+Development and Kubernetes monitoring use Prometheus and Grafana.
 
-```json
-{
-  "success": true,
-  "data": {
-    "id": "a1b2c3d4-uuid",
-    "name": "Ahmad Ali",
-    "email": "ahmad@example.com",
-    "role": "seeker",
-    "createdAt": "2026-05-01T00:00:00Z"
-  }
-}
-```
-
----
-
-### 3.4 Job Endpoints — Job Service
-
-### `POST /api/v1/jobs`
-
-**Access:** Authenticated — `employer` only
-
-**Request:**
-
-```json
-{
-  "title": "Backend Developer",
-  "company": "TechCorp",
-  "location": "Amman, Jordan",
-  "description": "Build scalable APIs.",
-  "salary": "1500 JOD"
-}
-```
-
-**Response `201 Created`:**
-
-```json
-{
-  "success": true,
-  "data": {
-    "id": "job-uuid-001",
-    "title": "Backend Developer",
-    "company": "TechCorp",
-    "location": "Amman, Jordan",
-    "description": "Build scalable APIs.",
-    "salary": "1500 JOD",
-    "employerId": "emp-uuid-001",
-    "createdAt": "2026-05-01T00:00:00Z"
-  }
-}
-```
-
----
-
-### `GET /api/v1/jobs`
-
-**Access:** Public (or Authenticated)
-
-**Query Params:** `?search=backend&location=Amman&page=1&limit=20`
-
-**Response `200 OK`:**
-
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "id": "job-uuid-001",
-      "title": "Backend Developer",
-      "company": "TechCorp",
-      "location": "Amman, Jordan",
-      "salary": "1500 JOD",
-      "employerId": "emp-uuid-001",
-      "createdAt": "2026-05-01T00:00:00Z"
-    }
-  ],
-  "meta": { "page": 1, "limit": 20, "total": 1 }
-}
-```
-
----
-
-### `GET /api/v1/jobs/:id`
-
-**Access:** Public
-
-**Response `200 OK`:**
-
-```json
-{
-  "success": true,
-  "data": {
-    "id": "job-uuid-001",
-    "title": "Backend Developer",
-    "company": "TechCorp",
-    "location": "Amman, Jordan",
-    "description": "Build scalable APIs.",
-    "salary": "1500 JOD",
-    "employerId": "emp-uuid-001",
-    "createdAt": "2026-05-01T00:00:00Z"
-  }
-}
-```
-
----
-
-### 3.5 Application Endpoints — Application Service
-
-### `POST /api/v1/applications`
-
-**Access:** Authenticated — `seeker` only
-
-**Request:**
-
-```json
-{
-  "jobId": "job-uuid-001",
-  "coverLetter": "I am a great fit for this role..."
-}
-```
-
-**Response `201 Created`:**
-
-```json
-{
-  "success": true,
-  "data": {
-    "id": "app-uuid-001",
-    "jobId": "job-uuid-001",
-    "seekerId": "a1b2c3d4-uuid",
-    "coverLetter": "I am a great fit for this role...",
-    "status": "pending",
-    "createdAt": "2026-05-01T00:00:00Z"
-  }
-}
-```
-
-> **Side Effect:** Publishes `application.submitted` event to RabbitMQ.
-> 
-
----
-
-### `PATCH /api/v1/applications/:id/status`
-
-**Access:** Authenticated — `employer` only
-
-**Request:**
-
-```json
-{
-  "status": "accepted"
-}
-```
-
-> Valid statuses: `"pending"` | `"reviewed"` | `"accepted"` | `"rejected"`
-> 
-
-**Response `200 OK`:**
-
-```json
-{
-  "success": true,
-  "data": {
-    "id": "app-uuid-001",
-    "jobId": "job-uuid-001",
-    "seekerId": "a1b2c3d4-uuid",
-    "status": "accepted",
-    "updatedAt": "2026-05-01T12:00:00Z"
-  }
-}
-```
-
-> **Side Effect:** Publishes `application.status_changed` event to RabbitMQ.
-> 
-
----
-
-### `GET /api/v1/applications?role=seeker`
-
-**Access:** Authenticated
-
-- **Seeker** sees their own applications.
-- **Employer** sees applications for their posted jobs.
-
-**Response `200 OK`:**
-
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "id": "app-uuid-001",
-      "jobId": "job-uuid-001",
-      "seekerId": "a1b2c3d4-uuid",
-      "status": "pending",
-      "createdAt": "2026-05-01T00:00:00Z"
-    }
-  ],
-  "meta": { "page": 1, "limit": 20, "total": 1 }
-}
-```
-
----
-
-### 3.6 Notification Endpoints — Notification Service
-
-### `GET /api/v1/notifications`
-
-**Access:** Authenticated (returns notifications for the logged-in user)
-
-**Response `200 OK`:**
-
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "id": "notif-uuid-001",
-      "userId": "a1b2c3d4-uuid",
-      "message": "Your application for 'Backend Developer' has been accepted!",
-      "read": false,
-      "createdAt": "2026-05-01T12:00:00Z"
-    }
-  ]
-}
-```
-
----
-
-## 4. Infrastructure & DevOps Blueprint
-
-### 4.1 Monorepo Folder Structure
-
-```
-job-portal-microservices-k8s/
-├── services/
-│   ├── user-service/
-│   │   ├── src/
-│   │   ├── Dockerfile              # Production multi-stage
-│   │   ├── Dockerfile.dev          # Dev with nodemon
-│   │   ├── package.json
-│   │   └── .env.example
-│   ├── job-service/
-│   │   ├── src/
-│   │   ├── Dockerfile
-│   │   ├── Dockerfile.dev
-│   │   └── package.json
-│   ├── application-service/
-│   │   ├── src/
-│   │   ├── Dockerfile
-│   │   ├── Dockerfile.dev
-│   │   └── package.json
-│   └── notification-service/
-│       ├── src/
-│       ├── Dockerfile
-│       ├── Dockerfile.dev
-│       └── package.json
-├── gateway/
-│   ├── nginx.dev.conf
-│   ├── nginx.test.conf
-│   ├── nginx.prod.conf
-│   └── Dockerfile
-├── infra/
-│   ├── init-databases.sql
-│   ├── prometheus/
-│   │   └── prometheus.yml
-│   └── grafana/
-│       └── dashboards/
-├── k8s/
-│   ├── namespace.yml
-│   ├── secrets.yml
-│   ├── configmap.yml
-│   ├── user-service/
-│   │   ├── deployment.yml
-│   │   └── service.yml
-│   ├── job-service/
-│   │   ├── deployment.yml
-│   │   └── service.yml
-│   ├── application-service/
-│   │   ├── deployment.yml
-│   │   └── service.yml
-│   ├── notification-service/
-│   │   ├── deployment.yml
-│   │   └── service.yml
-│   ├── postgres/
-│   │   ├── deployment.yml
-│   │   ├── service.yml
-│   │   └── pvc.yml
-│   ├── rabbitmq/
-│   │   ├── deployment.yml
-│   │   └── service.yml
-│   ├── nginx/
-│   │   ├── deployment.yml
-│   │   └── service.yml
-│   └── monitoring/
-│       ├── prometheus-deployment.yml
-│       └── grafana-deployment.yml
-├── docker-compose.dev.yml
-├── docker-compose.test.yml
-├── docker-compose.prod.yml
-└── README.md
-```
-
-### 4.2 Docker Strategy
-
-**Different Images (5 custom + 3 off-the-shelf = 8 total):**
-
-| # | Image | Type |
+| Component | Local path | Purpose |
 | --- | --- | --- |
-| 1 | `jobportal/user-service` | Custom |
-| 2 | `jobportal/job-service` | Custom |
-| 3 | `jobportal/app-service` | Custom |
-| 4 | `jobportal/notif-service` | Custom |
-| 5 | `jobportal/gateway` | Custom (Nginx + config) |
-| 6 | `postgres:16-alpine` | Official |
-| 7 | `rabbitmq:3-management-alpine` | Official |
-| 8 | `prom/prometheus` + `grafana/grafana` | Official |
+| Prometheus | `infrastructure/monitoring/prometheus/prometheus.yml` | Scrapes backend `/metrics` endpoints every 15 seconds in development. |
+| Grafana datasource | `infrastructure/monitoring/grafana/provisioning/datasources/datasource.yml` | Provisions Prometheus as the default Grafana datasource. |
+| Grafana dashboards | `infrastructure/monitoring/grafana/provisioning/dashboards/` | Loads the Job Portal dashboard for service latency, CPU, memory, request distribution, and health. |
+| Kubernetes monitoring | `k8s/monitoring/` | Deploys Prometheus, Grafana, and their internal services in the cluster namespace. |
 
-### Production `Dockerfile` (Multi-Stage)
+Runtime logs are available through the active runtime:
 
-```docker
-# ---- Stage 1: Build ----
-FROM node:20-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
-COPY src/ ./src/
-
-# ---- Stage 2: Runtime ----
-FROM node:20-alpine AS runtime
-WORKDIR /app
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/src ./src
-COPY package.json ./
-USER appuser
-EXPOSE 3000
-CMD ["node", "src/index.js"]
+```bash
+docker compose -f docker-compose.dev.yml -p jobportal-dev logs -f
+kubectl logs -n jobportal-prod deployment/user-service
 ```
 
-### Development `Dockerfile.dev`
+## Validation Commands
 
-```docker
-FROM node:20-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm install
-# Source is bind-mounted, not COPY'd
-EXPOSE 3000
-CMD ["npx", "nodemon", "src/index.js"]
+Validate Compose files:
+```bash
+docker compose --env-file .env.dev -f docker-compose.dev.yml config --quiet
+docker compose --env-file .env.test -f docker-compose.test.yml config --quiet
 ```
 
-**Key Difference:** Dev uses `nodemon` + bind mounts for hot-reload. Prod uses multi-stage for minimal image size (~120MB vs ~300MB).
-
-### 4.3 Docker Compose Environment Differentiation
-
-**`docker-compose.dev.yml` extras:**
-
-- Bind mounts: `./services/user-service/src:/app/src`
-- `NODE_ENV=development`
-- Debug ports exposed
-- `restart: "no"`
-
-**`docker-compose.prod.yml` extras:**
-
-- No bind mounts (baked-in code)
-- `NODE_ENV=production`
-- `restart: always`
-- Resource limits set
-
-### 4.4 Kubernetes Strategy
-
-### Namespace Isolation
-
-```yaml
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: jobportal-prod
+Validate Terraform:
+```bash
+cd infrastructure/terraform && terraform validate
 ```
 
-### Deployment Strategy — RollingUpdate
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: user-service
-  namespace: jobportal-prod
-spec:
-  replicas: 2
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 0
-      maxSurge: 1
-  selector:
-    matchLabels:
-      app: user-service
-  template:
-    metadata:
-      labels:
-        app: user-service
-    spec:
-      containers:
-        - name: user-service
-          image: jobportal/user-service:1.0.0
-          ports:
-            - containerPort: 3000
-          envFrom:
-            - configMapRef:
-                name: jobportal-config
-            - secretRef:
-                name: jobportal-secrets
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: 3000
-            initialDelaySeconds: 5
-            periodSeconds: 10
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: 3000
-            initialDelaySeconds: 15
-            periodSeconds: 20
-          resources:
-            requests:
-              memory: "128Mi"
-              cpu: "100m"
-            limits:
-              memory: "256Mi"
-              cpu: "250m"
+Run backend tests:
+```bash
+cd services/user-service && npm test
+cd services/job-service && npm test
+cd services/application-service && npm test
+cd services/notification-service && npm test
 ```
 
-### ConfigMap (Non-Sensitive)
-
-```yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: jobportal-config
-  namespace: jobportal-prod
-data:
-  NODE_ENV: "production"
-  DB_HOST: "postgres-service"
-  DB_PORT: "5432"
-  RABBITMQ_URL: "amqp://rabbitmq-service:5672"
-  USER_SERVICE_DB: "user_db"
-  JOB_SERVICE_DB: "job_db"
-  APP_SERVICE_DB: "application_db"
-  NOTIF_SERVICE_DB: "notification_db"
+Run Flutter tests:
+```bash
+cd app && flutter test
 ```
 
-### Secrets (Sensitive)
-
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: jobportal-secrets
-  namespace: jobportal-prod
-type: Opaque
-data:
-  JWT_SECRET: <base64-encoded>
-  DB_USER: <base64-encoded>
-  DB_PASSWORD: <base64-encoded>
-  RABBITMQ_USER: <base64-encoded>
-  RABBITMQ_PASS: <base64-encoded>
+Validate Kubernetes manifests:
+```bash
+kubectl apply --dry-run=client -f k8s/00-namespace.yml
+kubectl apply --dry-run=client -f k8s/01-configmap.yml
+kubectl apply --dry-run=client -f k8s/02-secrets.yml
 ```
 
-### Service (ClusterIP)
-
-```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: user-service
-  namespace: jobportal-prod
-spec:
-  type: ClusterIP
-  selector:
-    app: user-service
-  ports:
-    - port: 3000
-      targetPort: 3000
+Check running Kubernetes workloads:
+```bash
+kubectl get pods -n jobportal-prod
+kubectl get services -n jobportal-prod
+kubectl rollout status deployment/gateway -n jobportal-prod
 ```
 
-### 4.5 Monitoring Strategy
+## CI/CD & DevSecOps Coverage
 
-### Prometheus Scrape Configuration (`infra/prometheus/prometheus.yml`)
+The pipeline is fully automated using GitHub Actions. It validates code quality, executes tests, and verifies security configuration at the application, container, and infrastructure layers.
 
-```yaml
-global:
-  scrape_interval: 15s
+| Workflow File | Scope | Triggers | Key Validations & Tools |
+| --- | --- | --- | --- |
+| `ci-user-service.yml` | User Service | PR/Push to dev/main (matching paths) | Runs Node.js installation (`npm ci`) and backend unit tests. |
+| `ci-job-service.yml` | Job Service | PR/Push to dev/main (matching paths) | Runs Node.js installation and backend unit tests. |
+| `ci-application-service.yml` | Application Service | PR/Push to dev/main (matching paths) | Runs Node.js installation and backend unit tests. |
+| `ci-notification-service.yml` | Notification Service | PR/Push to dev/main (matching paths) | Runs Node.js installation and backend unit tests. |
+| `ci-flutter.yml` | Flutter App | PR/Push to dev/main (matching paths) | Installs Flutter SDK, resolves dependencies, compiles mocks, and runs tests. |
+| `ci-gateway.yml` | API Gateway | PR/Push to dev/main (matching paths) | Lints the Nginx gateway configuration and Dockerfile structure. |
+| `ci-infra.yml` | Shell scripts & databases | PR/Push to dev/main (matching paths) | Validates DB init SQL and executes `shellcheck` against local orchestration scripts. |
+| `ci-k8s.yml` | K8s Manifests | PR/Push to dev/main (matching paths) | Dry-run validates Kubernetes manifests using `kubectl apply --dry-run=client`. |
+| `ci-sec-sast.yml` | Static Analysis (SAST) | PR/Push to dev/main | Runs **Semgrep** scans on code files to identify potential application vulnerabilities. |
+| `ci-sec-container.yml` | Vulnerability Scanning (SCA/IaC) | PR/Push to dev/main | Runs **Trivy** to scan dependencies and container images, and **Checkov** to inspect Terraform configuration files and Kubernetes manifests. |
+| `e2e-tests.yml` | Integration Smoke Tests | PR/Push/Workflow Dispatch | Orchestrates testing Compose stacks, executes health-check validations, runs gateway endpoint checks, and verifies seeker user registration. |
 
-scrape_configs:
-  - job_name: "user-service"
-    static_configs:
-      - targets: ["user-service:3000"]
-    metrics_path: "/metrics"
+### DevSecOps Scanning Engine Breakdown
 
-  - job_name: "job-service"
-    static_configs:
-      - targets: ["job-service:3001"]
-    metrics_path: "/metrics"
+#### Semgrep (SAST)
+- **Purpose**: Static Application Security Testing.
+- **Scope**: Scans all Javascript (Node.js microservices) and Dart (Flutter app) codebases.
+- **Details**: Detects application-level flaws like SQL/command injection, insecure dependencies, improper cryptographic function calls, missing authorization middleware, and leaked credentials in code files.
 
-  - job_name: "application-service"
-    static_configs:
-      - targets: ["application-service:3002"]
-    metrics_path: "/metrics"
+#### Trivy (SCA & Container Security)
+- **Purpose**: Software Composition Analysis (SCA) and Container Image Security.
+- **Scope**: Scans NPM package-lock files, Flutter pubspec manifests, and packaged Docker images.
+- **Details**: Identifies known Common Vulnerabilities and Exposures (CVEs) within third-party packages, libraries, and container base OS layers (e.g., node-alpine and nginx-alpine), blocking integration if high-severity CVEs are uncovered.
 
-  - job_name: "notification-service"
-    static_configs:
-      - targets: ["notification-service:3003"]
-    metrics_path: "/metrics"
-```
+#### Checkov (IaC Security Compliance)
+- **Purpose**: Cloud Security Posture Management (CSPM) and Infrastructure as Code scanning.
+- **Scope**: Analyzes Terraform configurations (`infrastructure/terraform/`) and Kubernetes manifests (`k8s/`).
+- **Details**: Checks configurations against industry benchmarks (CIS, NIST). It flags issues such as publicly accessible EKS API endpoints, unencrypted RDS storage databases, missing Kubernetes resource constraints, root container executions, or overly permissive security groups.
 
-### Application-Level Metrics
+#### E2E Integration Smoke Testing
+- **Purpose**: Functional API verification and service interaction validation.
+- **Scope**: Orchestrated using Docker Compose in a clean, self-contained GitHub Actions runner.
+- **Details**: Builds production-grade containers, provisions a testing Compose stack, performs parallel health check probes on all microservices and gateway ports, tests user registration flows, and asserts runtime environment configuration distribution (`env.json`).
 
-Each service exposes a `/metrics` endpoint using `prom-client` (Node.js):
+## Compliance Matrix
 
-```jsx
-// src/metrics.js — shared across all services
-const client = require('prom-client');
-const register = new client.Registry();
-
-client.collectDefaultMetrics({ register });
-
-const httpRequestDuration = new client.Histogram({
-  name: 'http_request_duration_seconds',
-  help: 'Duration of HTTP requests in seconds',
-  labelNames: ['method', 'route', 'status_code'],
-  buckets: [0.01, 0.05, 0.1, 0.5, 1, 5],
-});
-register.registerMetric(httpRequestDuration);
-
-module.exports = { register, httpRequestDuration };
-```
-
-### Grafana Dashboards
-
-| Dashboard | Panels |
+| Security / Design Requirement | Project Evidence |
 | --- | --- |
-| **Service Health** | Request rate, Error rate (4xx/5xx), P95 latency per service |
-| **Infrastructure** | CPU/Memory per container, PostgreSQL connections, RabbitMQ queue depth |
+| Multiple services | Four Node.js services under `services/`, each with its own source, Dockerfile, tests, and package lock. |
+| API gateway | `gateway/` contains Nginx configs for dev, test, prod, and Kubernetes routing. |
+| Database per service | `init-databases.sql` (Local) / `rds-init-job.yaml` (AWS) creates separate logical databases, and each service migrates its own tables. |
+| Async communication | `application-service` publishes RabbitMQ topic events; `notification-service` consumes them and writes notifications. |
+| Dockerized stack | `docker-compose.dev.yml`, `docker-compose.test.yml`, and `docker-compose.prod.yml` run isolated local environments. |
+| Kubernetes orchestration | `k8s/` includes namespace, config, secrets, infrastructure, services, frontend, gateway, and monitoring manifests. |
+| Metrics and dashboards | Backend `/metrics` endpoints feed Prometheus; Grafana provisions a project dashboard automatically. |
+| CI validation | GitHub Actions validate service tests, Flutter tests, gateway linting, infrastructure, and Kubernetes manifests. |
+| Documentation | `docs/` documents setup, API, architecture, deployment, and file-level platform responsibilities. |
+| **Infrastructure as Code** | AWS VPC, private EKS cluster, RDS PostgreSQL instance, security groups, and KMS encryption keys declared and managed via Terraform in `infrastructure/terraform/`. |
+| **Vulnerability Management** | Automated pipelines run Semgrep (SAST) for source code analysis, Trivy (SCA/container) for dependencies and base images, and Checkov for IaC posture validation. |
 
----
+## Operational Notes
+
+| Task | Command |
+| --- | --- |
+| View development logs | `docker compose -f docker-compose.dev.yml -p jobportal-dev logs -f` |
+| View one development service | `docker compose -f docker-compose.dev.yml -p jobportal-dev logs -f user-service` |
+| List development containers | `docker compose -f docker-compose.dev.yml -p jobportal-dev ps` |
+| Check RabbitMQ management | Open `http://localhost:3112` in development. |
+| Check Prometheus targets | Open `http://localhost:3120/targets` in development. |
+| Check Grafana dashboards | Open `http://localhost:3121` in development. |
+| Port-forward Kubernetes Grafana | `kubectl port-forward -n jobportal-prod service/grafana 3000:3000` |
+| Port-forward Kubernetes Prometheus | `kubectl port-forward -n jobportal-prod service/prometheus 9090:9090` |
+
+## Current Platform Summary
+
+The current platform includes:
+- Flutter web frontend.
+- Nginx gateway.
+- User, job, application, and notification services.
+- PostgreSQL with one logical database per service (local container or cloud-managed RDS).
+- RabbitMQ for application lifecycle events.
+- Prometheus metrics scraping.
+- Grafana dashboard provisioning.
+- Docker Compose development, testing, and production-style stacks.
+- AWS Infrastructure as Code via Terraform (VPC, EKS, RDS, KMS, IAM).
+- Kubernetes deployment manifests for local and cloud environments.
+- CI workflows for service tests, frontend tests, infrastructure checks, Kubernetes validation, and Compose smoke tests.
+- DevSecOps security checks integrated into CI/CD (Semgrep SAST, Trivy SCA, Checkov IaC).
